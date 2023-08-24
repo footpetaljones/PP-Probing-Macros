@@ -42,9 +42,9 @@ o130 if [#<_metric> EQ 1]
 	o140 endif
 o130 else
 	o150 if [#<_first_position_to_probe> GT 0]
-	GG38.6 Z-.05
+	G38.6 Z-.05
 	o150 else
-	GG38.6 Z.05
+	G38.6 Z.05
 	o150 endif
 o130 endif
 
