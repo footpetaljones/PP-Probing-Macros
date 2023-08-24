@@ -1,0 +1,71 @@
+o<probe_x_edge> sub
+(Probe in x positive or negative direction and set 0)
+
+(PRINT, begin probe_x_edge probe)
+(PRINT, _first_position_to_probe is #<_first_position_to_probe>)
+(PRINT, _measuring_wcs is #<_measuring_wcs)
+(PRINT, _x_wcs_offset is #<_x_wcs_offset>)
+
+(set to measuring_wcs)
+G90 (set to absolute mode)
+
+(fast probe)
+F#<_probe_rough_feed_per_min>
+G38.2 X#<_first_position_to_probe>
+(PRINT, first touch successful)
+
+(first retract)
+G91 (set to incremental mode)
+F#<_probe_rough_feed_per_min>
+o100 if [#<_metric> EQ 1]  
+	o110 if [#<_first_position_to_probe> LT 0]
+    G38.6 X-.1
+	o110 else
+	G38.6 X.1
+	o110 endif
+o100 else
+  	o120 if [#<_first_position_to_probe> GT 0]
+	G38.6 X-.05
+	o120 else
+	G38.6 X.05
+	o120 endif
+o100 endif
+
+G90 (set to absolute mode)
+
+(slow probe)
+F#<_probe_fine_feed_per_min>
+G38.2 X#<_first_position_to_probe>
+(PRINT, second touch successful)
+
+G54.1 P#<_measuring_wcs>
+
+o160 if [#<_first_position_to_probe> GT 0]
+    G10 L20 P#5220 X#<_x_wcs_offset>
+    o160 else
+    G10 L20 P#5220 X#<_x_wcs_offset>
+o160 endif
+
+(second retract)
+G91 (set to incremental mode)
+F#<_probe_rough_feed_per_min>
+o130 if [#<_metric> EQ 1]  
+	o140 if [#<_first_position_to_probe> LT 0]
+    G38.6 X-.1
+    o140 else
+	G38.6 X.1
+	o140 endif
+o130 else
+    o150 if [#<_first_position_to_probe> GT 0]
+	G38.6 X-.05
+	o150 else
+	G38.6 X.05
+	o150 endif
+o130 endif
+
+G90 (set to absolute mode)
+
+(PRINT, end probe_x_edge probe)
+o<probe_x_edge> endsub
+
+M02 (end program)
