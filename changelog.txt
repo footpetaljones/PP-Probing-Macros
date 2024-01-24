@@ -1,0 +1,4 @@
+Changelog:
+
+changed feedrate parameters for Z, Y pocket, Y boss, X pocket, X boss, xy outer corner, three point boss, three point bore, right X edge, left x edge, front y edge, circular boss, circular bore, xy inner corner, back y edge programs to "feed_per_min"
+changed feedrate parameters in named_params from "feed_per_minute" to "feed_per_min"
