@@ -6,6 +6,10 @@ o<probe_y_edge> sub
 (PRINT, _measuring_wcs is #<_measuring_wcs)
 (PRINT, _y_wcs_offset is #<_y_wcs_offset>)
 
+#<_first_starting_position> = #5421
+
+(PRINT, _first_starting_position is #<_first_starting_position>)
+
 G90 (set to absolute mode)
 
 (fast probe)
@@ -16,18 +20,10 @@ G38.2 Y#<_first_position_to_probe>
 (first retract)
 G91 (set to incremental mode)
 F#<_probe_rough_feed_per_min>
-o100 if [#<_metric> EQ 1]  
-	o110 if [#<_first_position_to_probe> LT 0]
-    G38.6 Y-.1
-	o110 else
-	G38.6 Y.1
-	o110 endif
-o100 else
-	o120 if [#<_first_position_to_probe> GT 0]
-	G38.6 Y-.05
-	o120 else
-	G38.6 Y.05
-	o120 endif
+o100 if [#<_first_position_to_probe> GT #<_first_starting_position>]
+	G38.6 Y[[#5410/2]*-1]
+	o100 else
+	G38.6 Y[#5410/2]
 o100 endif
 
 G90 (set to absolute mode)
@@ -39,28 +35,20 @@ G38.2 Y#<_first_position_to_probe>
 
 G54.1 P#<_measuring_wcs>
 
-o160 if [#<_first_position_to_probe> GT 0]
-    G10 L20 P#5220 Y#<_y_wcs_offset>
+o160 if [#<_first_position_to_probe> GT #<_first_starting_position>]
+    G10 L20 P#5220 Y[#<_y_wcs_offset> - [#5410/2]]
     o160 else
-    G10 L20 P#5220 Y#<_y_wcs_offset>
+    G10 L20 P#5220 Y[#<_y_wcs_offset> + [#5410/2]]
 o160 endif
 
 (second retract)
 G91 (set to incremental mode)
 F#<_probe_rough_feed_per_min>
-o130 if [#<_metric> EQ 1]  
-	o140 if [#<_first_position_to_probe> LT 0]
-    G38.6 Y-.1
-	o140 else
-	G38.6 Y.1
-	o140 endif
-o130 else
-    o150 if [#<_first_position_to_probe> GT 0]
-	G38.6 Y-.05
-	o150 else
-	G38.6 Y.05
-	o150 endif
-o130 endif
+o110 if [#<_first_position_to_probe> GT #<_first_starting_position>]
+	G38.6 Y[[#5410/2]*-1]
+	o110 else
+	G38.6 Y[#5410/2]
+o110 endif
 
 G90 (set to absolute mode)
 

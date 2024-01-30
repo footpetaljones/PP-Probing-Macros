@@ -4,7 +4,7 @@
 (T99  D=0.1181 CR=0.0591 - ZMIN=0. - probe)
 G90 G64 G50 G17 G40 G80 G94 G91.1 G49
 G20 (Inch)
-G30 Z0
+G30
 M5 M9
 
 #<_first_position_to_probe> = 2
