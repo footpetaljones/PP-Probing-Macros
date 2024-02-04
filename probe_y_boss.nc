@@ -11,6 +11,10 @@ o<probe_y_boss> sub
 (PRINT, _measuring_wcs is #<_measuring_wcs)
 (PRINT, _y_wcs_offset is #<_y_wcs_offset>)
 
+#<_first_starting_position> = #5421
+
+(PRINT, _first_starting_position is #<_first_starting_position>)
+
 G90 (set to absolute mode)
 
 #1 = #5420 (current relative X position)
@@ -30,10 +34,10 @@ G38.2 Y#<_first_position_to_probe>
 (first retract)
 G91 (set to incremental mode)
 F#<_probe_rough_feed_per_min>
-o100 if [#<_metric> EQ 1]  
-	G38.6 Y.1
+o100 if [#<_first_position_to_probe> GT #<_first_starting_position>]
+	G38.6 Y[[#5410/2]*-1]
 	o100 else
-	G38.6 Y.05
+	G38.6 Y[#5410/2]
 o100 endif
 
 G90 (set to absolute mode)
@@ -43,25 +47,25 @@ F#<_probe_fine_feed_per_min>
 G38.2 Y#<_first_position_to_probe>
 (PRINT, first slow y touch successful)
 
-#<_first_y_touch> = #5421
+#<_first_y_touch> = #5062
 (PRINT, _first_y_touch is #<_first_y_touch>)
 
 (second retract)
 G91 (set to incremental mode)
 F#<_probe_rough_feed_per_min>
-o101 if [#<_metric> EQ 1]  
-	G38.6 Y.1
-	o101 else
-	G38.6 Y.05
-o101 endif
+o110 if [#<_first_position_to_probe> GT #<_first_starting_position>]
+	G38.6 Y[[#5410/2]*-1]
+	o110 else
+	G38.6 Y[#5410/2]
+o110 endif
 
 G90 (set to absolute mode)
 
 G1 Z#<_z_clearance_position> F#<_probe_rough_feed_per_min>
 
 (second Y position)
-G1 X#<_second_x_position> Y#<_second_y_position> F#<_rapid_ruff>
-G1 Z#<_second_z_position> F#<_probe_rough_feed_per_min>
+G1 X#<_second_x_position> Y#<_second_y_position>
+G1 Z#<_second_z_position>
 
 (fast probe)
 F#<_probe_rough_feed_per_min>
@@ -71,11 +75,11 @@ G38.2 Y#<_second_position_to_probe>
 (first retract)
 G91 (set to incremental mode)
 F#<_probe_rough_feed_per_min>
-o110 if [#<_metric> EQ 1]  
-	G38.6 Y-.1
-	o110 else
-	G38.6 Y-.05
-o110 endif
+o200 if [#<_first_position_to_probe> GT #<_first_starting_position>]
+	G38.6 Y[[#5410/2]*-1]
+	o200 else
+	G38.6 Y[#5410/2]
+o200 endif
 
 G90 (set to absolute mode)
 
@@ -84,17 +88,17 @@ F#<_probe_fine_feed_per_min>
 G38.2 Y#<_second_position_to_probe>
 (PRINT, second slow y touch successful)
 
-#<_second_y_touch> = #5421
+#<_second_y_touch> = #5062
 (PRINT, _second_y_touch is #<_second_y_touch>)
 
 (Y finished retract)
 G91 (set to incremental mode)
 F#<_probe_rough_feed_per_min>
-o102 if [#<_metric> EQ 1]  
-	G38.6 Y-.1
-	o102 else
-	G38.6 Y-.05
-o102 endif
+o210 if [#<_first_position_to_probe> GT #<_first_starting_position>]
+	G38.6 Y[[#5410/2]*-1]
+	o210 else
+	G38.6 Y[#5410/2]
+o210 endif
 
 G90 (set to absolute mode)
 

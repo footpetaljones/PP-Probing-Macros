@@ -22,9 +22,9 @@ G38.2 X#<_first_position_to_probe>
 G91 (set to incremental mode)
 F#<_probe_rough_feed_per_min>
 o100 if [#<_first_position_to_probe> GT #<_first_starting_position>]
-	G38.6 Y[[#5410/2]*-1]
+	G38.6 X[[#5410/2]*-1]
 	o100 else
-	G38.6 Y[#5410/2]
+	G38.6 X[#5410/2]
 o100 endif
 
 G90 (set to absolute mode)
@@ -46,9 +46,9 @@ o160 endif
 G91 (set to incremental mode)
 F#<_probe_rough_feed_per_min>
 o110 if [#<_first_position_to_probe> GT #<_first_starting_position>]
-	G38.6 Y[[#5410/2]*-1]
+	G38.6 X[[#5410/2]*-1]
 	o110 else
-	G38.6 Y[#5410/2]
+	G38.6 X[#5410/2]
 o110 endif
 
 G90 (set to absolute mode)
