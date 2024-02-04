@@ -7,13 +7,13 @@ G20 (Inch)
 G30
 M5 M9
 
-#<_first_position_to_probe> = .5
+#<_first_position_to_probe> = -.5
 #<_measuring_wcs> = 1 (given with number between 1 and 500 to be used with G54.1 Pxxx, set equivalent to #<driving_wcs> if same)
-#<_y_wcs_offset> = 0
+#<_y_wcs_offset> = -2
 
 T99 G43 H99 M6
 G54 (set to driving wcs)
-G0 X.25 Y-.25 (rapid move to XY location to start probe)
+G0 X.25 Y-2.25 (rapid move to XY location to start probe)
 G1 Z1 F#<_probe_rapid_feed_per_min> (rapid move to Z clearance height)
 G1 Z-.25 F#<_probe_rough_feed_per_min> (protected move to Z probing height)
 

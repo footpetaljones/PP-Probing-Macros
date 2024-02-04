@@ -12,11 +12,8 @@ o<probe_xy_corner> sub
 (PRINT, _x_wcs_offset is #<_x_wcs_offset>)
 
 #<_first_starting_position> = #5420
-#<_second_starting_position. = #5421
 
 (PRINT, _first_starting_position is #<_first_starting_position>)
-(PRINT, _second_starting_position is #<_second_starting_position>)
-
 
 G90 (set to absolute mode)
 
@@ -65,9 +62,13 @@ G90 (set to absolute mode)
 
 (PRINT, probing of x complete, begin probing of y)
 G54.1 P#3
-G1 Z#<_z_clearance_position> F#<_rapid_ruff> (rapid move to Z clearance height)
+G1 Z#<_z_clearance_position> F#<_probe_rapid_feed_per_min> (rapid move to Z clearance height)
 G1 X#<_second_x_position> Y#<_second_y_position>
 G1 Z#<_second_z_position> F#<_probe_rough_feed_per_min>
+
+#<_second_starting_position> = #5421
+
+(PRINT, _second_starting_position is #<_second_starting_position>)
 
 (fast probe)
 F#<_probe_rough_feed_per_min>
@@ -77,7 +78,7 @@ G38.2 Y#<_second_position_to_probe>
 (first retract)
 G91 (set to incremental mode)
 F#<_probe_rough_feed_per_min>
-o200 if [#<_first_position_to_probe> GT #<_second_starting_position>]
+o200 if [#<_second_position_to_probe> GT #<_second_starting_position>]
 	G38.6 Y[[#5410/2]*-1]
 	o200 else
 	G38.6 Y[#5410/2]

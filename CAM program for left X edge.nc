@@ -5,11 +5,11 @@ M5 M9 (turn off spindle and coolant)
 
 #<_first_position_to_probe> = .5
 #<_measuring_wcs> = 1 (G54)
-#<_x_wcs_offset> = 0
+#<_x_wcs_offset> = 3
 
 T99 G43 H99 M6
 G54 (set to positioning wcs)
-G0 X-.25 Y.25 (rapid move to XY location to start probing)
+G0 X3.25 Y-.25 (rapid move to XY location to start probing)
 G38.3 Z1 F#<_probe_rapid_feed_per_min> (fast speed protected move to Z clearance height)
 G38.3 Z-.25 F#<_probe_rough_feed_per_min> (medium speed protected move to Z probing height)
 
