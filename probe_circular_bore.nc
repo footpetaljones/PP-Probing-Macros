@@ -22,10 +22,12 @@ G38.2 X[#<_diameter_to_probe>/2]
 (PRINT, first x touch successful)
 
 (first retract)
-o100 if [#<_metric> EQ 1]  
-	G38.6 X-.1
+G91 (set to incremental mode)
+F#<_probe_rough_feed_per_min>
+o100 if [#<_first_position_to_probe> GT #1]
+	G38.6 X[[#5410/2]*-1]
 	o100 else
-	G38.6 X-.05
+	G38.6 X[#5410/2]
 o100 endif
 
 (slow probe)
@@ -36,10 +38,21 @@ G38.2 X[#<_diameter_to_probe>/2]
 #<_first_x_touch> = #5420
 (PRINT, _first_x_touch is #<_first_x_touch>)
 
+(second retract)
+G91 (set to incremental mode)
+F#<_probe_rough_feed_per_min>
+o110 if [#<_first_position_to_probe> GT #1]
+	G38.6 X[[#5410/2]*-1]
+	o110 else
+	G38.6 X[#5410/2]
+o110 endif
+
 (return to start position)
 G90
-G1 X#1 F#<_probe_rough_feed_per_min>
+G1 X#1 F#<_probe_rapid_feed_per_min>
 G91
+
+(Probe second X position)
 
 (fast probe)
 F#<_probe_rough_feed_per_min>
@@ -47,11 +60,13 @@ G38.2 X[#<_diameter_to_probe>/-2]
 (PRINT, first x touch successful)
 
 (first retract)
-o110 if [#<_metric> EQ 1]  
-	G38.6 X.1
-	o110 else
-	G38.6 X.05
-o110 endif
+G91 (set to incremental mode)
+F#<_probe_rough_feed_per_min>
+o200 if [#<_first_position_to_probe> GT #1]
+	G38.6 X[[#5410/2]*-1]
+	o200 else
+	G38.6 X[#5410/2]
+o200 endif
 
 (slow probe)
 F#<_probe_fine_feed_per_min>
@@ -61,13 +76,22 @@ G38.2 X[#<_diameter_to_probe>/-2]
 #<_second_x_touch> = #5420
 (PRINT, _second_x_touch is #<_second_x_touch>)
 
+(X finished retract)
+G91 (set to incremental mode)
+F#<_probe_rough_feed_per_min>
+o210 if [#<_first_position_to_probe> GT #1]
+	G38.6 X[[#5410/2]*-1]
+	o210 else
+	G38.6 X[#5410/2]
+o210 endif
+
+G90 (set to absolute mode)
+
 (PRINT, centering x)
 M66 P0 L0 (queue buster)
 #<_x_center> = [#<_first_x_touch> + #<_second_x_touch>]
 (PRINT, _x_center is #<_x_center>)
-
-G90
-G1 X#<_x_center> F#<_probe_rough_feed_per_min>
+G1 X#<_x_center> F#<_probe_rapid_feed_per_min>
 G54.1 P#<_measuring_wcs>
 G10 L20 P#5220 X#<_x_wcs_offset> 
 G54.1 P#4
@@ -79,13 +103,14 @@ F#<_probe_rough_feed_per_min>
 G38.2 Y[#<_diameter_to_probe>/2]
 (PRINT, first y touch successful)
 
-G91
 (first retract)
-o120 if [#<_metric> EQ 1]  
-	G38.6 Y-.1
-	o120 else
-	G38.6 Y-.05
-o120 endif
+G91 (set to incremental mode)
+F#<_probe_rough_feed_per_min>
+o300 if [#<_second_position_to_probe> GT #2]
+	G38.6 Y[[#5410/2]*-1]
+	o300 else
+	G38.6 Y[#5410/2]
+o300 endif
 
 (slow probe)
 F#<_probe_fine_feed_per_min>
@@ -95,9 +120,18 @@ G38.2 Y[#<_diameter_to_probe>/2]
 #<_first_y_touch> = #5421
 (PRINT, _first_y_touch is #<_first_y_touch>)
 
+(second retract)
+G91 (set to incremental mode)
+F#<_probe_rough_feed_per_min>
+o310 if [#<_second_position_to_probe> GT #2]
+	G38.6 Y[[#5410/2]*-1]
+	o310 else
+	G38.6 Y[#5410/2]
+o310 endif
+
 (return to start position)
-G90
-G1 Y#2 F#<_probe_rough_feed_per_min>
+G90 (set to absolute mode)
+G1 Y#2 F#<_probe_rapid_feed_per_min>
 G91
 
 (fast probe)
@@ -106,11 +140,13 @@ G38.2 Y[#<_diameter_to_probe>/-2]
 (PRINT, first y touch successful)
 
 (first retract)
-o130 if [#<_metric> EQ 1]  
-	G38.6 Y.1
-	o130 else
-	G38.6 Y.05
-o130 endif
+G91 (set to incremental mode)
+F#<_probe_rough_feed_per_min>
+o400 if [#<_second_position_to_probe> GT #2]
+	G38.6 Y[[#5410/2]*-1]
+	o400 else
+	G38.6 Y[#5410/2]
+o400 endif
 
 (slow probe)
 F#<_probe_fine_feed_per_min>
@@ -120,13 +156,22 @@ G38.2 Y[#<_diameter_to_probe>/-2]
 #<_second_y_touch> = #5421
 (PRINT, _second_y_touch is #<_second_y_touch>)
 
+(Y finished retract)
+G91 (set to incremental mode)
+F#<_probe_rough_feed_per_min>
+o410 if [#<_second_position_to_probe> GT #2]
+	G38.6 Y[[#5410/2]*-1]
+	o410 else
+	G38.6 Y[#5410/2]
+o410 endif
+
+G90 (set to absolute mode)
+
 (PRINT, centering y)
 M66 P0 L0 (queue buster)
 #<_y_center> = [#<_first_y_touch> + #<_second_y_touch>]
 (PRINT, _y_center is #<_y_center>)
-
-G90
-G1 Y#<_y_center> F#<_probe_rough_feed_per_min>
+G1 Y#<_y_center> F#<_probe_rapid_feed_per_min>
 G54.1 P#<_measuring_wcs>
 G10 L20 P#5220 Y#<_y_wcs_offset>
 G54.1 P#4

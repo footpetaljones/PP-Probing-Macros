@@ -22,7 +22,7 @@ G90 (set to absolute mode)
 (PRINT, # 4 is #4)
 
 (first X position)
-G1 X[#1 + #<radius_to_position>] F#<_probe_rough_feed_per_min>
+G1 X[#1 + #<radius_to_position>] F#<_probe_rapid_feed_per_min>
 G1 Z#<_first_position_to_probe> F#<_probe_rough_feed_per_min>
 
 (fast probe)
@@ -32,10 +32,11 @@ G38.2 X#1
 
 (first retract)
 G91 (set to incremental mode)
-o100 if [#<_metric> EQ 1]  
-	G38.6 X.1
+F#<_probe_rough_feed_per_min>
+o100 if [#<_first_position_to_probe> GT #1]
+	G38.6 X[[#5410/2]*-1]
 	o100 else
-	G38.6 X.05
+	G38.6 X[#5410/2]
 o100 endif
 
 G90 (set to absolute mode)
@@ -50,11 +51,12 @@ G38.2 X#1
 
 (second retract)
 G91 (set to incremental mode)
-o101 if [#<_metric> EQ 1]  
-	G38.6 X.1
-	o101 else
-	G38.6 X.05
-o101 endif
+F#<_probe_rough_feed_per_min>
+o110 if [#<_first_position_to_probe> GT #1]
+	G38.6 X[[#5410/2]*-1]
+	o110 else
+	G38.6 X[#5410/2]
+o110 endif
 
 G90 (set to absolute mode)
 
@@ -71,11 +73,12 @@ G38.2 X#1
 
 (first retract)
 G91 (set to incremental mode)
-o110 if [#<_metric> EQ 1]  
-	G38.6 X-.1
-	o110 else
-	G38.6 X-.05
-o110 endif
+F#<_probe_rough_feed_per_min>
+o200 if [#<_first_position_to_probe> GT #1]
+	G38.6 X[[#5410/2]*-1]
+	o200 else
+	G38.6 X[#5410/2]
+o200 endif
 
 G90 (set to absolute mode)
 
@@ -87,23 +90,23 @@ G38.2 X#1
 #<_second_x_touch> = #5420
 (PRINT, _second_x_touch is #<_second_x_touch>)
 
-
 (X finished retract)
 G91 (set to incremental mode)
-o102 if [#<_metric> EQ 1]  
-	G38.6 X-.1
-	o102 else
-	G38.6 X-.05
-o102 endif
+F#<_probe_rough_feed_per_min>
+o210 if [#<_first_position_to_probe> GT #1]
+	G38.6 X[[#5410/2]*-1]
+	o210 else
+	G38.6 X[#5410/2]
+o210 endif
 
 G90 (set to absolute mode)
 
-G1 Z#<_z_clearance_position> F#<_probe_rough_feed_per_min>
+G1 Z#<_z_clearance_position> F#<_probe_rapid_feed_per_min>
 
 (PRINT, centering x)
 #<_x_center> = [#<_first_x_touch> + #<_second_x_touch>]
 (PRINT, _x_center is #<_x_center>)
-G1 X#<_x_center> F#<_probe_rough_feed_per_min>
+G1 X#<_x_center> F#<_probe_rapid_feed_per_min>
 G54.1 P#<_measuring_wcs>
 G10 L20 P#5220 X#<_x_wcs_offset> 
 G54.1 P#4
@@ -111,7 +114,7 @@ G54.1 P#4
 (PRINT, probing of x complete, begin probing of y)
 
 (first Y position)
-G1 Y[#2 + #<radius_to_position>] F#<_probe_rough_feed_per_min>
+G1 Y[#2 + #<radius_to_position>] F#<_probe_rapid_feed_per_min>
 G1 Z#<_first_position_to_probe> F#<_probe_rough_feed_per_min>
 
 (fast probe)
@@ -121,11 +124,12 @@ G38.2 Y#2
 
 (first retract)
 G91 (set to incremental mode)
-o120 if [#<_metric> EQ 1]  
-	G38.6 Y.1
-	o120 else
-	G38.6 Y.05
-o120 endif
+F#<_probe_rough_feed_per_min>
+o300 if [#<_second_position_to_probe> GT #2]
+	G38.6 Y[[#5410/2]*-1]
+	o300 else
+	G38.6 Y[#5410/2]
+o300 endif
 
 G90 (set to absolute mode)
 
@@ -139,18 +143,19 @@ G38.2 Y#2
 
 (second retract)
 G91 (set to incremental mode)
-o121 if [#<_metric> EQ 1]  
-	G38.6 Y.1
-	o121 else
-	G38.6 Y.05
-o121 endif
+F#<_probe_rough_feed_per_min>
+o310 if [#<_second_position_to_probe> GT #2]
+	G38.6 Y[[#5410/2]*-1]
+	o310 else
+	G38.6 Y[#5410/2]
+o310 endif
 
 G90 (set to absolute mode)
 
-G1 Z#<_z_clearance_position> F#<_probe_rough_feed_per_min>
+G1 Z#<_z_clearance_position> F#<_probe_rapid_feed_per_min>
 
 (second Y position)
-G1 Y[#2 - #<radius_to_position>] F#<_probe_rough_feed_per_min>
+G1 Y[#2 - #<radius_to_position>] F#<_probe_rapid_feed_per_min>
 G1 Z#<_first_position_to_probe> F#<_probe_rough_feed_per_min>
 
 (fast probe)
@@ -160,11 +165,12 @@ G38.2 Y#2
 
 (first retract)
 G91 (set to incremental mode)
-o130 if [#<_metric> EQ 1]  
-	G38.6 Y-.1
-	o130 else
-	G38.6 Y-.05
-o130 endif
+F#<_probe_rough_feed_per_min>
+o400 if [#<_second_position_to_probe> GT #2]
+	G38.6 Y[[#5410/2]*-1]
+	o400 else
+	G38.6 Y[#5410/2]
+o400 endif
 
 G90 (set to absolute mode)
 
@@ -178,11 +184,12 @@ G38.2 Y#2
 
 (Y finished retract)
 G91 (set to incremental mode)
-o122 if [#<_metric> EQ 1]  
-	G38.6 Y-.1
-	o122 else
-	G38.6 Y-.05
-o122 endif
+F#<_probe_rough_feed_per_min>
+o410 if [#<_second_position_to_probe> GT #2]
+	G38.6 Y[[#5410/2]*-1]
+	o410 else
+	G38.6 Y[#5410/2]
+o410 endif
 
 G90 (set to absolute mode)
 

@@ -10,8 +10,6 @@ o<probe_boss_three_point> sub
 (PRINT, _x_wcs_offset is #<_x_wcs_offset>)
 (PRINT, _y_wcs_offset is #<_y_wcs_offset>)
 
-(G91) (set to incremental mode)
-
 #1 = #5420 (current relative X position)
 #2 = #5421 (current relative Y position)
 #3 = #5422 (current relative Z position)
@@ -30,29 +28,24 @@ o1 if [#<_diameter_to_position> LE #<_diameter_to_probe]
 	(ABORT, diameter to position is less than or equal to diameter to probe in probe_boss_three_point routine)
 o1 endif
 
+G90 (set absolute mode)
+
 (first vector position)
-G38.3 @#<_diameter_to_position> ^#<_first_vector> F#<_rapid_ruff>
-G38.3 Z#<_first_position_to_probe>
+G1 @#<_diameter_to_position> ^#<_first_vector> F#<_probe_rapid_feed_per_min>
+G1 Z#<_first_position_to_probe> F#<_probe_rough_feed_per_min>
 
 (PRINT, probing first vector)
 (fast probe)
-F#<_probe_rough_feed_per_min>
 G38.2 @#<_diameter_to_probe>
 (PRINT, first first_vector touch successful)
 
 (first retract)
-G91
-o100 if [#<_metric> EQ 1]  
-	G38.6 @-.1
-	o100 else
-	G38.6 @-.05
-o100 endif
-G90
+G38.6 @[#<_diameter_to_probe>+[#5410/2]]
 
 (slow probe)
 F#<_probe_fine_feed_per_min>
 G38.2 @#<_diameter_to_probe>
-(PRINT, second first_vector touch successful)
+(PRINT, first_vector touch finished)
 
 #<_first_vector_x_location> = #5420
 #<_first_vector_y_location> = #5421
@@ -60,21 +53,16 @@ G38.2 @#<_diameter_to_probe>
 (PRINT, _first_vector_x_location is #<_first_vector_x_location>)
 
 (retract from first touch point)
-G90
-G1 @#<_diameter_to_position> F#<_rapid_ruff>
-G1 Z#3
-(G91)
+G38.6 @#<_diameter_to_position> F#<_probe_rapid_feed_per_min>
+G1 Z#3 (retract to original Z position)
 
 (return to start position)
-G90
-G1 X#1 Y#1 F#<_probe_rough_feed_per_min>
-(G91)
+G1 X#1 Y#1 (retract to original XY position)
 
 (PRINT, probing second vector)
 (second vector position)
-G38.3 @#<_diameter_to_position> ^#<_second_vector> F#<_rapid_ruff>
-G38.3 Z#<_first_position_to_probe>
-
+G1 @#<_diameter_to_position> ^#<_second_vector> F#<_probe_rapid_feed_per_min>
+G1 Z#<_first_position_to_probe>
 
 (fast probe)
 F#<_probe_rough_feed_per_min>
@@ -82,18 +70,12 @@ G38.2 @#<_diameter_to_probe>
 (PRINT, first second_vector touch successful)
 
 (second retract)
-G91
-o120 if [#<_metric> EQ 1]  
-	G38.6 @-.1
-	o120 else
-	G38.6 @-.05
-o120 endif
-G90
+G38.6 @[#<_diameter_to_probe>+[#5410/2]]
 
 (slow probe)
 F#<_probe_fine_feed_per_min>
 G38.2 @#<_diameter_to_probe>
-(PRINT, second second_vector touch successful)
+(PRINT, second_vector touch finished)
 
 #<_second_vector_x_location> = #5420
 #<_second_vector_y_location> = #5421
@@ -101,33 +83,23 @@ G38.2 @#<_diameter_to_probe>
 (PRINT, _second_vector_y_location is #<_second_vector_y_location>)
 
 (retract from second touch point)
-G90
-G1 @#<_diameter_to_position> F#<_rapid_ruff>
-G1 Z#3
-(G91)
+G38.6 @#<_diameter_to_position> F#<_probe_rapid_feed_per_min>
+G1 Z#3 (retract to original Z position)
 
 (return to start position)
-G90
-G1 X#1 Y#1 F#<_probe_rough_feed_per_min>
-(G91)
+G1 X#1 Y#1 (retract to original XY position)
 
 (PRINT, probing third vector)
 (second vector position)
-G38.3 @#<_diameter_to_position> ^#<_third_vector> F#<_rapid_ruff>
-G38.3 Z#<_first_position_to_probe>
+G1 @#<_diameter_to_position> ^#<_third_vector> F#<_probe_rapid_feed_per_min>
+G1 Z#<_first_position_to_probe>
 (fast probe)
 F#<_probe_rough_feed_per_min>
 G38.2 @#<_diameter_to_probe> 
 (PRINT, first third_vector touch successful)
 
 (third retract)
-G91
-o110 if [#<_metric> EQ 1]  
-	G38.6 @-.1
-	o110 else
-	G38.6 @-.05
-o110 endif
-G90
+G38.6 @[#<_diameter_to_probe>+[#5410/2]]
 
 (slow probe)
 F#<_probe_fine_feed_per_min>
@@ -140,15 +112,11 @@ G38.2 @#<_diameter_to_probe>
 (PRINT, _third_vector_y_location is #<_third_vector_y_location>)
 
 (retract from third touch point)
-G90
-G1 @#<_diameter_to_position> F#<_rapid_ruff>
-G1 Z#3
-(G91)
+G38.6 @#<_diameter_to_position> F#<_probe_rapid_feed_per_min>
+G1 Z#3 (retract to original Z position)
 
 (return to start position)
-G90
-G1 X#1 Y#2 F#<_probe_rough_feed_per_min>
-(G91)
+G1 X#1 Y#1 (retract to original XY position)
 
 (PRINT, probing of points finished, start of calculations)
 
@@ -170,14 +138,11 @@ G1 X#1 Y#2 F#<_probe_rough_feed_per_min>
 #<_x_center> = [#<_x_center_mid1> / #<_x_center_mid2>]
 (PRINT, _x_center is #<_x_center>)
 
-
 (Find y center)
 #<_y_center> = [[#<_x_center> - #<variable>] * #<variable3> / #<variable4> + #<variable2>]
 (PRINT, _y_center is #<_y_center>)
 
-
 (move to center)
-G90
 G1 X#<_x_center> Y#<_y_center> F#<_probe_rough_feed_per_min>
 G54.1 P#<_measuring_wcs>
 G10 L20 P#5220 X#_x_wcs_offset> Y#<_y_wcs_offset>
