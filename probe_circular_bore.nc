@@ -24,11 +24,8 @@ G38.2 X[#<_diameter_to_probe>/2]
 (first retract)
 G91 (set to incremental mode)
 F#<_probe_rough_feed_per_min>
-o100 if [#<_first_position_to_probe> GT #1]
-	G38.6 X[[#5410/2]*-1]
-	o100 else
-	G38.6 X[#5410/2]
-o100 endif
+G38.6 X[[#5410/2]*-1]
+G90 (set to absolute mode)
 
 (slow probe)
 F#<_probe_fine_feed_per_min>
@@ -41,16 +38,11 @@ G38.2 X[#<_diameter_to_probe>/2]
 (second retract)
 G91 (set to incremental mode)
 F#<_probe_rough_feed_per_min>
-o110 if [#<_first_position_to_probe> GT #1]
-	G38.6 X[[#5410/2]*-1]
-	o110 else
-	G38.6 X[#5410/2]
-o110 endif
+G38.6 X[[#5410/2]*-1]
+G90 (set to absolute mode)
 
 (return to start position)
-G90
 G1 X#1 F#<_probe_rapid_feed_per_min>
-G91
 
 (Probe second X position)
 
@@ -62,11 +54,8 @@ G38.2 X[#<_diameter_to_probe>/-2]
 (first retract)
 G91 (set to incremental mode)
 F#<_probe_rough_feed_per_min>
-o200 if [#<_first_position_to_probe> GT #1]
-	G38.6 X[[#5410/2]*-1]
-	o200 else
-	G38.6 X[#5410/2]
-o200 endif
+G38.6 X[#5410/2]
+G90 (set to absolute mode)
 
 (slow probe)
 F#<_probe_fine_feed_per_min>
@@ -79,12 +68,7 @@ G38.2 X[#<_diameter_to_probe>/-2]
 (X finished retract)
 G91 (set to incremental mode)
 F#<_probe_rough_feed_per_min>
-o210 if [#<_first_position_to_probe> GT #1]
-	G38.6 X[[#5410/2]*-1]
-	o210 else
-	G38.6 X[#5410/2]
-o210 endif
-
+G38.6 X[#5410/2]
 G90 (set to absolute mode)
 
 (PRINT, centering x)
@@ -106,11 +90,8 @@ G38.2 Y[#<_diameter_to_probe>/2]
 (first retract)
 G91 (set to incremental mode)
 F#<_probe_rough_feed_per_min>
-o300 if [#<_second_position_to_probe> GT #2]
-	G38.6 Y[[#5410/2]*-1]
-	o300 else
-	G38.6 Y[#5410/2]
-o300 endif
+G38.6 Y[[#5410/2]*-1]
+G90 (set to absolute mode)
 
 (slow probe)
 F#<_probe_fine_feed_per_min>
@@ -123,11 +104,8 @@ G38.2 Y[#<_diameter_to_probe>/2]
 (second retract)
 G91 (set to incremental mode)
 F#<_probe_rough_feed_per_min>
-o310 if [#<_second_position_to_probe> GT #2]
-	G38.6 Y[[#5410/2]*-1]
-	o310 else
-	G38.6 Y[#5410/2]
-o310 endif
+G38.6 Y[[#5410/2]*-1]
+G90 (set to absolute mode)
 
 (return to start position)
 G90 (set to absolute mode)
@@ -142,11 +120,8 @@ G38.2 Y[#<_diameter_to_probe>/-2]
 (first retract)
 G91 (set to incremental mode)
 F#<_probe_rough_feed_per_min>
-o400 if [#<_second_position_to_probe> GT #2]
-	G38.6 Y[[#5410/2]*-1]
-	o400 else
-	G38.6 Y[#5410/2]
-o400 endif
+G38.6 Y[#5410/2]
+G90 (set to absolute mode)
 
 (slow probe)
 F#<_probe_fine_feed_per_min>
@@ -159,12 +134,7 @@ G38.2 Y[#<_diameter_to_probe>/-2]
 (Y finished retract)
 G91 (set to incremental mode)
 F#<_probe_rough_feed_per_min>
-o410 if [#<_second_position_to_probe> GT #2]
-	G38.6 Y[[#5410/2]*-1]
-	o410 else
-	G38.6 Y[#5410/2]
-o410 endif
-
+G38.6 Y[#5410/2]
 G90 (set to absolute mode)
 
 (PRINT, centering y)

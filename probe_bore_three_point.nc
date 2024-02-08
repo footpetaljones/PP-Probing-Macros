@@ -25,7 +25,9 @@ G38.2 @#<_diameter_to_probe> ^#<_first_vector>
 (PRINT, first first_vector touch successful)
 
 (first retract)
-G38.6 @[#<_diameter_to_probe>+[#5410/2]]
+G91 (set incremental mode)
+G38.6 @[[#5410/2]*-1]
+G90 (set absolute mode)
 
 (slow probe)
 F#<_probe_fine_feed_per_min>
@@ -38,11 +40,7 @@ G38.2 @#<_diameter_to_probe>
 (PRINT, _first_vector_x_location is #<_first_vector_x_location>)
 
 (retract from first touch point)
-G38.6 @#<_diameter_to_position> F#<_probe_rapid_feed_per_min>
-G1 Z#3 (retract to original Z position)
-
-(return to start position)
-G1 X#1 Y#1 (retract to original XY position)
+G38.6 X#1 Y#1 F#<_probe_rapid_feed_per_min>
 
 (PRINT, probing second vector)
 (fast probe)
@@ -51,7 +49,9 @@ G38.2 @#<_diameter_to_probe> ^#<_second_vector>
 (PRINT, first second_vector touch successful)
 
 (second retract)
-G38.6 @[#<_diameter_to_probe>+[#5410/2]]
+G91 (set incremental mode)
+G38.6 @[[#5410/2]*-1]
+G90 (set absolute mode)
 
 (slow probe)
 F#<_probe_fine_feed_per_min>
@@ -64,11 +64,7 @@ G38.2 @#<_diameter_to_probe>
 (PRINT, _second_vector_y_location is #<_second_vector_y_location>)
 
 (retract from second touch point)
-G38.6 @#<_diameter_to_position> F#<_probe_rapid_feed_per_min>
-G1 Z#3 (retract to original Z position)
-
-(return to start position)
-G1 X#1 Y#1 (retract to original XY position)
+G38.6 X#1 Y#1 F#<_probe_rapid_feed_per_min>
 
 (PRINT, probing third vector)
 (fast probe)
@@ -77,7 +73,9 @@ G38.2 @#<_diameter_to_probe> ^#<_third_vector>
 (PRINT, first third_vector touch successful)
 
 (third retract)
-G38.6 @[#<_diameter_to_probe>+[#5410/2]]
+G91 (set incremental mode)
+G38.6 @[[#5410/2]*-1]
+G90 (set absolute mode)
 
 (slow probe)
 F#<_probe_fine_feed_per_min>
@@ -90,11 +88,7 @@ G38.2 @#<_diameter_to_probe>
 (PRINT, _third_vector_y_location is #<_third_vector_y_location>)
 
 (retract from third touch point)
-G38.6 @#<_diameter_to_position> F#<_probe_rapid_feed_per_min>
-G1 Z#3 (retract to original Z position)
-
-(return to start position)
-G1 X#1 Y#1 (retract to original XY position)
+G38.6 X#1 Y#1 F#<_probe_rapid_feed_per_min>
 
 (PRINT, probing of points finished, start of calculations)
 

@@ -14,13 +14,13 @@ o<probe_boss_three_point> sub
 #2 = #5421 (current relative Y position)
 #3 = #5422 (current relative Z position)
 #4 = #5220 (current active wcs)
-#<_radius_to_position> = [#<_diameter_to_probe / 2]
+#<_radius_to_position> = [#<_diameter_to_probe> / 2]
 (PRINT, # 1 is #1)
 (PRINT, # 2 is #2)
 (PRINT, # 3 is #3)
 (PRINT, # 4 is #4)
 
-o1 if [#<_diameter_to_position> LE #<_diameter_to_probe]
+o1 if [#<_diameter_to_position> LE #<_diameter_to_probe>]
 	(PRINT, diameter to position = #<_diameter_to_position>)
 	(PRINT, diameter to probe = #<_diameter_to_probe>)
 	(DEBUG, diameter to position = #<_diameter_to_position>)
@@ -145,7 +145,7 @@ G1 X#1 Y#1 (retract to original XY position)
 (move to center)
 G1 X#<_x_center> Y#<_y_center> F#<_probe_rough_feed_per_min>
 G54.1 P#<_measuring_wcs>
-G10 L20 P#5220 X#_x_wcs_offset> Y#<_y_wcs_offset>
+G10 L20 P#5220 X#<_x_wcs_offset> Y#<_y_wcs_offset>
 G54.1 P#4
 
 (PRINT, end probe_boss_three_point)
