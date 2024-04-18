@@ -104,7 +104,7 @@ G1 Z#<_z_clearance_position> F#<_probe_rough_feed_per_min>
 (PRINT, _x_center is #<_x_center>)
 G1 X#<_x_center> F#<_probe_rough_feed_per_min>
 G54.1 P#<_measuring_wcs>
-G10 L20 P#5220 X#_x_wcs_offset> 
+G10 L20 P#5220 X#<_x_wcs_offset> 
 G54.1 P#4
 
 (PRINT, end probe_x_pocket)
