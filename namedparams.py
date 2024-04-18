@@ -95,15 +95,15 @@ def _collet_closer_id_style(self, *args):
 # Probing parameters
 def _probe_fine_feed_per_min(self, *args):
     redisclient = redis.Redis()
-    rpm = redisclient.hget('machine_prefs', 'probe_fine_feed_per_min')
+    rpm = redisclient.hget('machine_prefs', 'probe_fine_feed_per_minute')
     return float(rpm)
 
 def _probe_rough_feed_per_min(self, *args):
     redisclient = redis.Redis()
-    rpm = redisclient.hget('machine_prefs', 'probe_rough_feed_per_min')
+    rpm = redisclient.hget('machine_prefs', 'probe_rough_feed_per_minute')
     return float(rpm)
 
 def _probe_rapid_feed_per_min(self, *args):
     redisclient = redis.Redis()
-    rpm = redisclient.hget('machine_prefs', 'probe_rapid_feed_per_min')
+    rpm = redisclient.hget('machine_prefs', 'probe_rapid_feed_per_minute')
     return float(rpm)
