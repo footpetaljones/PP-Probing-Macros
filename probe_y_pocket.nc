@@ -8,8 +8,10 @@ o<probe_y_pocket> sub
 (PRINT, _second_y_position is #<_second_y_position>)
 (PRINT, _second_z_position is #<_second_z_position>)
 (PRINT, _z_clearance_position is #<_z_clearance_position>)
-(PRINT, _measuring_wcs is #<_measuring_wcs)
+(PRINT, _measuring_wcs is #<_measuring_wcs>)
 (PRINT, _y_wcs_offset is #<_y_wcs_offset>)
+(DEBUG, Previous G54.1 P#<_measuring_wcs> Y offset is #<_work_offset_y>)
+
 
 G90 (set to absolute mode)
 
@@ -58,8 +60,8 @@ o101 endif
 G90 (set to absolute mode)
 
 (second Y position)
-G1 Z#<_z_clearance_position> F#<_rapid_ruff>
-G1 X#<_second_x_position> Y#<_second_y_position> F#<_rapid_ruff>
+G1 Z#<_z_clearance_position> F#<_probe_rapid_feed_per_min>
+G1 X#<_second_x_position> Y#<_second_y_position> F#<_probe_rapid_feed_per_min>
 G1 Z#<_second_z_position> F#<_probe_rough_feed_per_min>
 G90
 
@@ -106,6 +108,7 @@ G1 Z#<_z_clearance_position> F#<_probe_rough_feed_per_min>
 G1 Y#<_y_center> F#<_probe_rough_feed_per_min>
 G54.1 P#<_measuring_wcs>
 G10 L20 P#5220 Y#<_y_wcs_offset>
+(DEBUG, Found G54.1 P#<_measuring_wcs> Y offset is #<_work_offset_y>)
 G54.1 P#4
 
 (PRINT, end probe_y_boss)

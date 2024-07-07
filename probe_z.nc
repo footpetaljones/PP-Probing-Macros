@@ -3,8 +3,10 @@ o<probe_z> sub
 
 (PRINT, begin probe_z probe)
 (PRINT, _first_position_to_probe is #<_first_position_to_probe>)
-(PRINT, _measuring_wcs is #<_measuring_wcs)
+(PRINT, _measuring_wcs is #<_measuring_wcs>)
 (PRINT, _z_wcs_offset is #<_z_wcs_offset>)
+(DEBUG, Previous G54.1 P#<_measuring_wcs> Z offset is #<_work_offset_z>)
+
 
 G90 (set to absolute mode)
 
@@ -30,6 +32,8 @@ G38.2 Z#<_first_position_to_probe>
 (PRINT, second touch successful)
 
 G10 L20 P#<_measuring_wcs> Z#<_z_wcs_offset>
+(DEBUG, Found G54.1 P#<_measuring_wcs> Z offset is #<_work_offset_z>)
+
 
 (second retract)
 G91 (set to incremental mode)

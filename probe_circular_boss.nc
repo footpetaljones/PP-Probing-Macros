@@ -5,9 +5,11 @@ o<probe_circular_boss> sub
 (PRINT, _diameter_to_position is #<_diameter_to_position>)
 (PRINT, _z_clearance_position is #<_z_clearance_position>)
 (PRINT, _first_position_to_probe is #<_first_position_to_probe>)
-(PRINT, _measuring_wcs is #<_measuring_wcs)
+(PRINT, _measuring_wcs is #<_measuring_wcs>)
 (PRINT, _x_wcs_offset is #<_x_wcs_offset>)
 (PRINT, _y_wcs_offset is #<_y_wcs_offset>)
+(DEBUG, Previous G54.1 P#<_measuring_wcs> X offset is #<_work_offset_x>)
+(DEBUG, Previous G54.1 P#<_measuring_wcs> Y offset is #<_work_offset_y>)
 
 G90 (set to absolute mode)
 
@@ -89,6 +91,7 @@ G1 Z#<_z_clearance_position> F#<_probe_rapid_feed_per_min>
 G1 X#<_x_center> F#<_probe_rapid_feed_per_min>
 G54.1 P#<_measuring_wcs>
 G10 L20 P#5220 X#<_x_wcs_offset> 
+(DEBUG, Found G54.1 P#<_measuring_wcs> X offset is #<_work_offset_x>)
 G54.1 P#4
 
 (PRINT, probing of x complete, begin probing of y)
@@ -161,6 +164,7 @@ G1 Z#<_z_clearance_position> F#<_probe_rapid_feed_per_min>
 G1 Y#<_y_center> F#<_probe_rapid_feed_per_min>
 G54.1 P#<_measuring_wcs>
 G10 L20 P#5220 Y#<_y_wcs_offset>
+(DEBUG, Found G54.1 P#<_measuring_wcs> Y offset is #<_work_offset_y>)
 G54.1 P#4
 
 (PRINT, end probe_bore_four_point probe)

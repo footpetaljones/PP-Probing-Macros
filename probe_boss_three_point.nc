@@ -6,9 +6,11 @@ o<probe_boss_three_point> sub
 (PRINT, _third_vector is #<_third_vector>)
 (PRINT, _diameter_to_probe is #<_diameter_to_probe>)
 (PRINT, _diameter_to_position is #<_diameter_to_position)
-(PRINT, _measuring_wcs is #<_measuring_wcs)
+(PRINT, _measuring_wcs is #<_measuring_wcs>)
 (PRINT, _x_wcs_offset is #<_x_wcs_offset>)
 (PRINT, _y_wcs_offset is #<_y_wcs_offset>)
+(DEBUG, Previous G54.1 P#<_measuring_wcs> X offset is #<_work_offset_x>)
+(DEBUG, Previous G54.1 P#<_measuring_wcs> Y offset is #<_work_offset_y>)
 
 #1 = #5420 (current relative X position)
 #2 = #5421 (current relative Y position)
@@ -146,6 +148,8 @@ G1 X#1 Y#1 (retract to original XY position)
 G1 X#<_x_center> Y#<_y_center> F#<_probe_rough_feed_per_min>
 G54.1 P#<_measuring_wcs>
 G10 L20 P#5220 X#<_x_wcs_offset> Y#<_y_wcs_offset>
+(DEBUG, Found G54.1 P#<_measuring_wcs> X offset is #<_work_offset_x>)
+(DEBUG, Found G54.1 P#<_measuring_wcs> Y offset is #<_work_offset_y>)
 G54.1 P#4
 
 (PRINT, end probe_boss_three_point)

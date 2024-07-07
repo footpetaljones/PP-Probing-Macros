@@ -8,8 +8,11 @@ o<probe_xy_corner> sub
 (PRINT, _second_y_position is #<_second_y_position>)
 (PRINT, _second_z_position is #<_second_z_position>)
 (PRINT, _z_clearance_position is #<_z_clearance_position>)
-(PRINT, _measuring_wcs is #<_measuring_wcs)
+(PRINT, _measuring_wcs is #<_measuring_wcs>)
 (PRINT, _x_wcs_offset is #<_x_wcs_offset>)
+(DEBUG, Previous G54.1 P#<_measuring_wcs> X offset is #<_work_offset_x>)
+(DEBUG, Previous G54.1 P#<_measuring_wcs> Y offset is #<_work_offset_y>)
+
 
 #<_first_starting_position> = #5420
 
@@ -48,6 +51,8 @@ o160 if [#<_first_position_to_probe> GT #<_first_starting_position>]
     o160 else
     G10 L20 P#5220 X[#<_x_wcs_offset> + [#5410/2]]
 o160 endif
+
+(DEBUG, Found G54.1 P#<_measuring_wcs> X offset is #<_work_offset_x>)
 
 (second retract)
 G91 (set to incremental mode)
@@ -98,6 +103,8 @@ o260 if [#<_second_position_to_probe> GT #<_second_starting_position>]
     o260 else
     G10 L20 P#5220 Y[#<_y_wcs_offset> + [#5410/2]]
 o260 endif
+
+(DEBUG, Found G54.1 P#<_measuring_wcs> Y offset is #<_work_offset_y>)
 
 (second retract)
 G91 (set to incremental mode)

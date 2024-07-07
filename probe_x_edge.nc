@@ -3,8 +3,10 @@ o<probe_x_edge> sub
 
 (PRINT, begin probe_x_edge probe)
 (PRINT, _first_position_to_probe is #<_first_position_to_probe>)
-(PRINT, _measuring_wcs is #<_measuring_wcs)
+(PRINT, _measuring_wcs is #<_measuring_wcs>)
 (PRINT, _x_wcs_offset is #<_x_wcs_offset>)
+(DEBUG, Previous G54.1 P#<_measuring_wcs> X offset is #<_work_offset_x>)
+
 
 #<_first_starting_position> = #5420
 
@@ -41,6 +43,9 @@ o160 if [#<_first_position_to_probe> GT #<_first_starting_position>]
     o160 else
     G10 L20 P#5220 X[#<_x_wcs_offset> + [#5410/2]]
 o160 endif
+
+(DEBUG, Found G54.1 P#<_measuring_wcs> X offset is #<_work_offset_x>)
+
 
 (second retract)
 G91 (set to incremental mode)
