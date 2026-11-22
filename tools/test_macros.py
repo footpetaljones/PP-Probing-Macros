@@ -339,7 +339,7 @@ def feature_tests():
     # logging: new file with header, then append
     it, err = bore({'_log_results': 2, '_feature_number': 7})
     check('log 2: header + 1 row', len(it.logfile) == 2 and it.logfile[0].startswith('epoch,'), it.logfile)
-    check('log 2: 19 columns', len(it.logfile[1].split(',')) == 19 == len(it.logfile[0].split(',')),
+    check('log 2: 21 columns', len(it.logfile[1].split(',')) == 21 == len(it.logfile[0].split(',')),
           it.logfile[1] if len(it.logfile) > 1 else None)
     check('log 2: switches to append', it.named['_log_results'] == 1)
     check('log row: macro name and feature', ',probe_circular_bore,' in it.logfile[1] and
@@ -350,6 +350,81 @@ def feature_tests():
                           {'_first_position_to_probe': w(0, 0, -9.5)[2], '_measuring_wcs': 2,
                            '_z_wcs_offset': -12.0, '_set_wcs': 0})
     check('z inspect: dev 0', abs(it.named['_result_z_dev']) < 1e-9, (err, it.named.get('_result_z_dev')))
+
+    # ---- wear corrections (cut-measure-cut)
+    tol0 = {'_nominal_size': 1.002, '_set_wcs': 0, '_tolerance_action': 0}
+    it, err = bore(dict(tol0, _update_tool=5))
+    check('wear bore undersize: pending -0.002 on T5', it.named.get('_wear_pending_tool') == 5 and
+          abs(it.named['_wear_pending_diameter'] + 0.002) < 1e-9, (err, it.named.get('_wear_pending_diameter')))
+    check('wear: _update_tool cleared', it.named['_update_tool'] == 0)
+    # apply with T5 loaded and existing wear .0003 / .0010
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    it.tools[5] = {'I': 0.0003, 'W': 0.0010}
+    it.loaded = 5
+    it.run(os.path.join(root, 'probe_apply_wear.nc'))
+    check('apply: T5 diameter wear .0003 - .002 = -.0017', abs(it.tools[5]['I'] + 0.0017) < 1e-9, it.tools[5])
+    check('apply: length wear unchanged', abs(it.tools[5]['W'] - 0.0010) < 1e-9, it.tools[5])
+    check('apply: G43 re-issued, pending cleared', it.trace[-1] == ('G43', 5) and it.named['_wear_pending_tool'] == 0)
+
+    it, err = bore(dict(tol0, _update_tool=5, _update_feedback=0.5))
+    check('wear feedback 0.5: -0.001', abs(it.named['_wear_pending_diameter'] + 0.001) < 1e-9,
+          it.named['_wear_pending_diameter'])
+    # second measurement on the same tool accumulates; a different tool replaces with a warning
+    it.named.update({'_nominal_size': 1.002, '_set_wcs': 0, '_update_tool': 5})
+    it.M = [12.03, 5.98, -8.5]
+    it.run(os.path.join(root, 'probe_circular_bore.nc'))
+    check('wear: same tool accumulates -0.001 + -0.002', abs(it.named['_wear_pending_diameter'] + 0.003) < 1e-9,
+          it.named['_wear_pending_diameter'])
+    it.named.update({'_nominal_size': 1.002, '_set_wcs': 0, '_update_tool': 7})
+    it.M = [12.03, 5.98, -8.5]
+    it.run(os.path.join(root, 'probe_circular_bore.nc'))
+    check('wear: other tool replaces pending with a warning', it.named['_wear_pending_tool'] == 7 and
+          abs(it.named['_wear_pending_diameter'] + 0.002) < 1e-9 and
+          any('never applied' in m for k, m in it.messages if k == 'DEBUG'), it.named['_wear_pending_diameter'])
+    # wrong tool loaded -> not applied, kept
+    it.loaded = 5
+    it.tools[5] = {'I': 0.0, 'W': 0.0}
+    it.run(os.path.join(root, 'probe_apply_wear.nc'))
+    check('apply with wrong tool: kept, not written', it.named['_wear_pending_tool'] == 7 and it.tools[5]['I'] == 0)
+
+    # boss oversize .002 -> diameter wear -.002 (external)
+    it, err = run_feature('probe_circular_boss', World([Cylinder(12.0, 6.0, 0.5, False, ztop=-8.0)]),
+                          (12.02, 6.01, -7.5),
+                          {'_diameter_to_position': 1.5, '_first_position_to_probe': w(0, 0, -8.5)[2],
+                           '_z_clearance_position': w(0, 0, -7.5)[2], '_measuring_wcs': 2,
+                           '_x_wcs_offset': 9.0, '_y_wcs_offset': 3.0, '_nominal_size': 0.998,
+                           '_set_wcs': 0, '_update_tool': 4})
+    check('wear boss oversize: pending -0.002', abs(it.named.get('_wear_pending_diameter', 1) + 0.002) < 1e-9,
+          (err, it.named.get('_wear_pending_diameter')))
+
+    # Z face .003 high -> length wear -.003, Z wcs not moved even though _set_wcs defaults to 1
+    it, err = run_feature('probe_z', World([Floor(-9.0)]), (11, 6, -8.6),
+                          {'_first_position_to_probe': w(0, 0, -9.5)[2], '_measuring_wcs': 2,
+                           '_z_wcs_offset': -12.003, '_update_tool': 3})
+    check('wear Z face high: length -0.003', abs(it.named.get('_wear_pending_length', 1) + 0.003) < 1e-9,
+          (err, it.named.get('_wear_pending_length')))
+    check('wear Z: wcs not moved', it.off[2] == G55, it.off[2])
+
+    # limits and edges
+    it, err = bore(dict(tol0, _update_tool=5, _update_minimum=0.003))
+    check('wear under minimum: nothing pending', not it.named.get('_wear_pending_diameter'),
+          it.named.get('_wear_pending_diameter'))
+    it, err = bore(dict(tol0, _update_tool=5, _update_maximum=0.001))
+    check('wear over maximum: nothing pending, status 4', not it.named.get('_wear_pending_diameter') and
+          it.named['_result_status'] == 4)
+    it, err = bore(dict(tol0, _update_tool=5, _size_tolerance_plus=0.001, _size_tolerance_minus=0.001,
+                        _tolerance_action=1), pause='abort')
+    check('wear: stop at M0 leaves nothing pending', not it.named.get('_wear_pending_diameter'),
+          (err, it.named.get('_wear_pending_diameter')))
+    it, err = run_feature('probe_x_edge', World([Wall('X', 12.0, +1)]), (11.5, 6, -8.5),
+                          {'_first_position_to_probe': w(12.5, 0, 0)[0], '_measuring_wcs': 2,
+                           '_x_wcs_offset': 9.0, '_update_tool': 5})
+    check('wear on an edge: skipped with a message', not it.named.get('_wear_pending_diameter') and
+          any('needs _nominal_size' in m for k, m in it.messages if k == 'DEBUG'))
+    it, err = bore({'_log_results': 2, '_nominal_size': 1.002, '_set_wcs': 0, '_update_tool': 5,
+                    '_tolerance_action': 0})
+    check('log: 21 columns with tool and correction', len(it.logfile[1].split(',')) == 21 and
+          it.logfile[1].split(',')[-2:] == ['5.000000', '-0.002000'], it.logfile)
 
     width = max(len(n) for n, _, _ in results)
     fails = 0

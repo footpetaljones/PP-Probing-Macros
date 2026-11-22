@@ -174,31 +174,38 @@ Sizes: pocket/boss width from the two touches ± tip diameter; circular bore/bos
 CSV columns: `epoch,feature,macro,wcs,set_wcs,wcs_updated,status,x_nominal,x,x_dev,y_nominal,y,y_dev,z_nominal,z,z_dev,size_nominal,size,size_dev`
 (unused axes are empty; values print with 6 decimals; epoch from `#<_epochtime>`).
 
-### 4.5 Cut-measure-cut flow
-Example calling program (finish bore with semi-finish allowance):
+### 4.5 Cut-measure-cut (implemented)
+Extra inputs on the probing call (cleared after the call):
+
+| Parameter | Default | Meaning |
+|---|---|---|
+| `#<_update_tool>` | 0 | Tool whose wear is corrected. Size features need `_nominal_size`; `probe_z` uses `_z_wcs_offset` as the face nominal and is then inspect-only for the WCS. |
+| `#<_update_feedback>` | 1 | Fraction of the error applied (0 < F ≤ 1). |
+
+`_update_minimum` / `_update_maximum` and the M0 accept step apply to wear the same way as to the WCS.
+Corrections: internal size → diameter wear + error·F; external size → diameter wear − error·F; Z face → length wear − error·F.
+The correction is stored in inches as pending (`_wear_pending_tool`, `_wear_pending_diameter`, `_wear_pending_length`);
+a second correction for the same tool adds to it, one for another tool replaces it with a DEBUG warning.
+`o<probe_apply_wear> call` after the tool change reads #5411/#5409 (inches), adds the pending values, writes
+`G10 L1 P#5400 I[U_INCH[..]] W[U_INCH[..]]` (program units) and re-issues `G43 H#5400`. If another tool is
+loaded it does nothing and keeps the correction.
+
 ```
-(semi-finish bore with T5, leaving ~0.005 on diameter)
+(semi-finish bore with T5, leaving material)
 T99 G43 H99 M6
 #<_nominal_size> = 0.7450 (semi-finish target)
-#<_size_tolerance_plus> = 0.0020
-#<_size_tolerance_minus> = 0.0020
-#<_upper_limit> = 0.020
-#<_tolerance_action> = 0 (flag only, program branches below)
 #<_set_wcs> = 0 (inspect only)
 #<_update_tool> = 5
+#<_tolerance_action> = 0 (no stop - the program branches)
+(position the probe in the bore, then)
 o<probe_circular_bore> call
 o100 if [#<_result_status> EQ 2]
-  (ABORT, bore oversize at semi-finish - scrap)
+	(ABORT, bore oversize at semi-finish - scrap)
 o100 endif
-T5 G43 H5 M6
-(finish bore with corrected T5 diameter)
+T5 M6 G43 H5
+o<probe_apply_wear> call
+(finish bore with cutter compensation)
 ```
-**Applying the tool correction** — two options, decision needed:
-- **A (pure G-code, recommended):** the probe macro stores a pending correction
-  (`_pending_tool`, `_pending_tool_delta`). After the tool change, `o<probe_apply_tool_update> call`
-  reads `#5410` for the loaded tool, writes `G10 L1 P#5400 R[...]`, re-issues `G43`, and clears the pending value.
-- **B (Python):** a named-parameter function in the user Python file returns the tool-table diameter/length
-  for the tool number in `#<_update_tool>`, so the probe macro can write `G10 L1` immediately.
 
 ### 4.6 Orientation
 - Machine capability from the wireless-probe parameter (Python file to come).

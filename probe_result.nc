@@ -6,6 +6,7 @@ o<probe_result> sub
 (#8 measured size, #9 size type: 0 none, 1 internal - bore or pocket, 2 external - boss)
 (macro codes: 1 z, 2 x_edge, 3 y_edge, 4 xy_corner, 5 x_pocket, 6 y_pocket, 7 x_boss, 8 y_boss)
 (9 circular_bore, 10 circular_boss, 11 bore_three_point, 12 boss_three_point)
+(wear corrections for cut-measure-cut are stored as pending and written by probe_apply_wear)
 
 #<macro> = #1
 #<has_x> = #2
@@ -62,6 +63,20 @@ o109 endif
 o110 if [EXISTS[#<_update_maximum>]]
 	#<update_maximum> = ABS[#<_update_maximum>]
 o110 endif
+#<update_tool> = 0
+o111 if [EXISTS[#<_update_tool>]]
+	#<update_tool> = #<_update_tool>
+o111 endif
+#<feedback> = 1
+o112 if [EXISTS[#<_update_feedback>]]
+	#<feedback> = #<_update_feedback>
+o112 endif
+o113 if [[#<feedback> LE 0] OR [#<feedback> GT 1]]
+	#<feedback> = 1 (0 or out of range means full correction)
+o113 endif
+o114 if [[#<update_tool> GT 0] AND #<has_z>]
+	#<set_wcs> = 0 (a Z touch used for length wear does not also move the wcs)
+o114 endif
 
 (offset from the positioning wcs to the measuring wcs - no motion while switched)
 #<positioning_wcs> = #5220
@@ -248,7 +263,70 @@ o400 if [[#<set_wcs> EQ 1] AND [#<over_maximum> EQ 0] AND [#<abort_after_log> EQ
 o400 endif
 #<_result_wcs_set> = #<wcs_updated>
 
+(wear correction for _update_tool - stored as pending until probe_apply_wear runs with that tool loaded)
+(internal size: diameter wear + error, external size: diameter wear - error, Z face: length wear - error)
+#<wear_kind> = 0 (1 diameter, 2 length)
+#<wear_correction> = 0 (program units)
+#<wear_skipped> = 0 (1 under minimum, 2 no size or Z, 3 over maximum or aborted)
+o420 if [#<update_tool> GT 0]
+	o421 if [#<over_maximum> OR #<abort_after_log>]
+		#<wear_skipped> = 3
+	o421 elseif [#<size_check>]
+		o422 if [ABS[#<_result_size_dev>] LT #<update_minimum>]
+			#<wear_skipped> = 1
+		o422 elseif [#<size_type> EQ 1]
+			#<wear_kind> = 1
+			#<wear_correction> = [#<_result_size_dev> * #<feedback>]
+		o422 else
+			#<wear_kind> = 1
+			#<wear_correction> = [#<_result_size_dev> * #<feedback> * -1]
+		o422 endif
+	o421 elseif [#<has_z> AND [#<has_x> EQ 0]]
+		o423 if [ABS[#<_result_z_dev>] LT #<update_minimum>]
+			#<wear_skipped> = 1
+		o423 else
+			#<wear_kind> = 2
+			#<wear_correction> = [#<_result_z_dev> * #<feedback> * -1]
+		o423 endif
+	o421 else
+		#<wear_skipped> = 2
+	o421 endif
+o420 endif
+o430 if [#<wear_kind> GT 0]
+	o431 if [EXISTS[#<_wear_pending_tool>] EQ 0]
+		#<_wear_pending_tool> = 0
+		#<_wear_pending_diameter> = 0
+		#<_wear_pending_length> = 0
+	o431 endif
+	o432 if [[#<_wear_pending_tool> NE 0] AND [#<_wear_pending_tool> NE #<update_tool>]]
+		(DEBUG, pending wear correction for T#<_wear_pending_tool> was never applied - replaced)
+		#<_wear_pending_diameter> = 0
+		#<_wear_pending_length> = 0
+	o432 endif
+	#<_wear_pending_tool> = #<update_tool>
+	o433 if [#<wear_kind> EQ 1]
+		#<_wear_pending_diameter> = [#<_wear_pending_diameter> + [#<wear_correction> / U_INCH[1]]]
+	o433 else
+		#<_wear_pending_length> = [#<_wear_pending_length> + [#<wear_correction> / U_INCH[1]]]
+	o433 endif
+o430 endif
+
 o410 if [#<display> EQ 1]
+	o440 if [#<wear_kind> EQ 1]
+		(DEBUG, T#<update_tool> diameter wear #<wear_correction> pending - call probe_apply_wear after the tool change)
+	o440 endif
+	o441 if [#<wear_kind> EQ 2]
+		(DEBUG, T#<update_tool> length wear #<wear_correction> pending - call probe_apply_wear after the tool change)
+	o441 endif
+	o442 if [#<wear_skipped> EQ 1]
+		(DEBUG, T#<update_tool> wear not changed - difference under the update minimum #<update_minimum>)
+	o442 endif
+	o443 if [#<wear_skipped> EQ 2]
+		(DEBUG, T#<update_tool> wear not changed - needs _nominal_size on a size feature or probe_z)
+	o443 endif
+	o444 if [#<wear_skipped> EQ 3]
+		(DEBUG, T#<update_tool> wear not changed - over the update maximum or aborted)
+	o444 endif
 	o411 if [#<set_wcs> NE 1]
 		(DEBUG, G54.1 P#<_measuring_wcs> not updated - inspect only)
 	o411 endif
@@ -272,7 +350,7 @@ o410 endif
 (results file - 1 append, 2 start a new file with a header row)
 o500 if [#<log> EQ 2]
 	(LOGOPEN,/home/operator/gcode/probe_results.csv)
-	(LOG,epoch,feature,macro,wcs,set_wcs,wcs_updated,status,x_nominal,x,x_dev,y_nominal,y,y_dev,z_nominal,z,z_dev,size_nominal,size,size_dev)
+	(LOG,epoch,feature,macro,wcs,set_wcs,wcs_updated,status,x_nominal,x,x_dev,y_nominal,y,y_dev,z_nominal,z,z_dev,size_nominal,size,size_dev,update_tool,wear_correction)
 	(LOGCLOSE)
 	#<_log_results> = 1
 o500 endif
@@ -305,42 +383,44 @@ o510 if [#<log> GT 0]
 	#<sn> = #<nominal_size>
 	#<sm> = #<_result_size>
 	#<sd> = #<_result_size_dev>
+	#<ut> = #<update_tool>
+	#<wc> = #<wear_correction>
 	(LOGAPPEND,/home/operator/gcode/probe_results.csv)
 	o521 if [#<macro> EQ 1]
-		(LOG,#<t>,#<fn>,probe_z,#<w>,#<sw>,#<up>,#<st>,,,,,,,#<zn>,#<zm>,#<zd>,,,)
+		(LOG,#<t>,#<fn>,probe_z,#<w>,#<sw>,#<up>,#<st>,,,,,,,#<zn>,#<zm>,#<zd>,,,,#<ut>,#<wc>)
 	o521 endif
 	o522 if [#<macro> EQ 2]
-		(LOG,#<t>,#<fn>,probe_x_edge,#<w>,#<sw>,#<up>,#<st>,#<xn>,#<xm>,#<xd>,,,,,,,,,)
+		(LOG,#<t>,#<fn>,probe_x_edge,#<w>,#<sw>,#<up>,#<st>,#<xn>,#<xm>,#<xd>,,,,,,,,,,#<ut>,#<wc>)
 	o522 endif
 	o523 if [#<macro> EQ 3]
-		(LOG,#<t>,#<fn>,probe_y_edge,#<w>,#<sw>,#<up>,#<st>,,,,#<yn>,#<ym>,#<yd>,,,,,,)
+		(LOG,#<t>,#<fn>,probe_y_edge,#<w>,#<sw>,#<up>,#<st>,,,,#<yn>,#<ym>,#<yd>,,,,,,,#<ut>,#<wc>)
 	o523 endif
 	o524 if [#<macro> EQ 4]
-		(LOG,#<t>,#<fn>,probe_xy_corner,#<w>,#<sw>,#<up>,#<st>,#<xn>,#<xm>,#<xd>,#<yn>,#<ym>,#<yd>,,,,,,)
+		(LOG,#<t>,#<fn>,probe_xy_corner,#<w>,#<sw>,#<up>,#<st>,#<xn>,#<xm>,#<xd>,#<yn>,#<ym>,#<yd>,,,,,,,#<ut>,#<wc>)
 	o524 endif
 	o525 if [#<macro> EQ 5]
-		(LOG,#<t>,#<fn>,probe_x_pocket,#<w>,#<sw>,#<up>,#<st>,#<xn>,#<xm>,#<xd>,,,,,,,#<sn>,#<sm>,#<sd>)
+		(LOG,#<t>,#<fn>,probe_x_pocket,#<w>,#<sw>,#<up>,#<st>,#<xn>,#<xm>,#<xd>,,,,,,,#<sn>,#<sm>,#<sd>,#<ut>,#<wc>)
 	o525 endif
 	o526 if [#<macro> EQ 6]
-		(LOG,#<t>,#<fn>,probe_y_pocket,#<w>,#<sw>,#<up>,#<st>,,,,#<yn>,#<ym>,#<yd>,,,,#<sn>,#<sm>,#<sd>)
+		(LOG,#<t>,#<fn>,probe_y_pocket,#<w>,#<sw>,#<up>,#<st>,,,,#<yn>,#<ym>,#<yd>,,,,#<sn>,#<sm>,#<sd>,#<ut>,#<wc>)
 	o526 endif
 	o527 if [#<macro> EQ 7]
-		(LOG,#<t>,#<fn>,probe_x_boss,#<w>,#<sw>,#<up>,#<st>,#<xn>,#<xm>,#<xd>,,,,,,,#<sn>,#<sm>,#<sd>)
+		(LOG,#<t>,#<fn>,probe_x_boss,#<w>,#<sw>,#<up>,#<st>,#<xn>,#<xm>,#<xd>,,,,,,,#<sn>,#<sm>,#<sd>,#<ut>,#<wc>)
 	o527 endif
 	o528 if [#<macro> EQ 8]
-		(LOG,#<t>,#<fn>,probe_y_boss,#<w>,#<sw>,#<up>,#<st>,,,,#<yn>,#<ym>,#<yd>,,,,#<sn>,#<sm>,#<sd>)
+		(LOG,#<t>,#<fn>,probe_y_boss,#<w>,#<sw>,#<up>,#<st>,,,,#<yn>,#<ym>,#<yd>,,,,#<sn>,#<sm>,#<sd>,#<ut>,#<wc>)
 	o528 endif
 	o529 if [#<macro> EQ 9]
-		(LOG,#<t>,#<fn>,probe_circular_bore,#<w>,#<sw>,#<up>,#<st>,#<xn>,#<xm>,#<xd>,#<yn>,#<ym>,#<yd>,,,,#<sn>,#<sm>,#<sd>)
+		(LOG,#<t>,#<fn>,probe_circular_bore,#<w>,#<sw>,#<up>,#<st>,#<xn>,#<xm>,#<xd>,#<yn>,#<ym>,#<yd>,,,,#<sn>,#<sm>,#<sd>,#<ut>,#<wc>)
 	o529 endif
 	o530 if [#<macro> EQ 10]
-		(LOG,#<t>,#<fn>,probe_circular_boss,#<w>,#<sw>,#<up>,#<st>,#<xn>,#<xm>,#<xd>,#<yn>,#<ym>,#<yd>,,,,#<sn>,#<sm>,#<sd>)
+		(LOG,#<t>,#<fn>,probe_circular_boss,#<w>,#<sw>,#<up>,#<st>,#<xn>,#<xm>,#<xd>,#<yn>,#<ym>,#<yd>,,,,#<sn>,#<sm>,#<sd>,#<ut>,#<wc>)
 	o530 endif
 	o531 if [#<macro> EQ 11]
-		(LOG,#<t>,#<fn>,probe_bore_three_point,#<w>,#<sw>,#<up>,#<st>,#<xn>,#<xm>,#<xd>,#<yn>,#<ym>,#<yd>,,,,#<sn>,#<sm>,#<sd>)
+		(LOG,#<t>,#<fn>,probe_bore_three_point,#<w>,#<sw>,#<up>,#<st>,#<xn>,#<xm>,#<xd>,#<yn>,#<ym>,#<yd>,,,,#<sn>,#<sm>,#<sd>,#<ut>,#<wc>)
 	o531 endif
 	o532 if [#<macro> EQ 12]
-		(LOG,#<t>,#<fn>,probe_boss_three_point,#<w>,#<sw>,#<up>,#<st>,#<xn>,#<xm>,#<xd>,#<yn>,#<ym>,#<yd>,,,,#<sn>,#<sm>,#<sd>)
+		(LOG,#<t>,#<fn>,probe_boss_three_point,#<w>,#<sw>,#<up>,#<st>,#<xn>,#<xm>,#<xd>,#<yn>,#<ym>,#<yd>,,,,#<sn>,#<sm>,#<sd>,#<ut>,#<wc>)
 	o532 endif
 	(LOGCLOSE)
 o510 endif
@@ -354,6 +434,8 @@ o510 endif
 #<_position_tolerance> = 0
 #<_update_minimum> = 0
 #<_update_maximum> = 0
+#<_update_tool> = 0
+#<_update_feedback> = 1
 
 o600 if [#<abort_after_log>]
 	(ABORT, probing result out of tolerance - see the Status tab)

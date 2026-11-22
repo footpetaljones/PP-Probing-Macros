@@ -264,6 +264,9 @@ class Interp:
         self.log_open = False
         self.pause_answer = pause_answer
         self.paused = False
+        self.tools = {}       # tool -> {'I': diameter wear, 'W': length wear} (inches)
+        self.loaded = 99
+        self.next_tool = None
 
     # parameters
     def wpos(self):
@@ -287,7 +290,11 @@ class Interp:
         if ref == 5410:
             return self.tip
         if ref == 5400:
-            return 99.0
+            return float(self.loaded)
+        if ref == 5409:
+            return self.tools.get(self.loaded, {}).get('W', 0.0)
+        if ref == 5411:
+            return self.tools.get(self.loaded, {}).get('I', 0.0)
         return self.params.get(ref, 0.0)
 
     def set_param(self, ref, v):
@@ -474,6 +481,8 @@ class Interp:
         w = {k: v for k, v in words if k not in 'GM'}
         if 'F' in w:
             self.feed = w['F']
+        if 'T' in w:
+            self.next_tool = int(round(w['T']))
         for g in gs:
             if abs(g - 90) < 1e-9:
                 self.absolute = True
@@ -491,6 +500,9 @@ class Interp:
                     raise GcodeError('operator stopped at M0')
             elif mcode == 66:
                 pass
+            elif mcode == 6:
+                self.loaded = self.next_tool
+                self.trace.append(('M6', self.loaded))
             else:
                 raise GcodeError('unsupported M%g' % mcode)
         motion = None
@@ -502,9 +514,20 @@ class Interp:
                 self.off.setdefault(self.active, [0.0, 0.0, 0.0])
                 self.trace.append(('G54.1', self.active))
                 return
+            elif g == 10 and int(w.get('L', 0)) == 1:
+                n = int(round(w['P']))
+                t = self.tools.setdefault(n, {'I': 0.0, 'W': 0.0})
+                for k in ('I', 'W'):
+                    if k in w:
+                        t[k] = w[k]  # inch program: no conversion
+                self.trace.append(('G10L1', n, tuple(sorted((k, round(v, 9)) for k, v in t.items()))))
+                return
+            elif g == 43:
+                self.trace.append(('G43', int(round(w.get('H', self.loaded)))))
+                return
             elif g == 10:
                 if int(w.get('L', 0)) != 20:
-                    raise GcodeError('only G10 L20 modeled')
+                    raise GcodeError('only G10 L1 and L20 modeled')
                 n = int(round(w['P']))
                 self.off.setdefault(n, [0.0, 0.0, 0.0])
                 for k, ax in enumerate('XYZ'):
