@@ -246,8 +246,8 @@ One or two lines per feature, e.g.
 4. **Rectangular boss/pocket in one call** (X and Y), and **angled single surface / angled web**.
 5. **Circular bore with obstacle** (implement what the article already describes).
 6. **Auto-repeat** for three-point routines (re-probe once from the found center).
-7. **Bias (experience) value** for size — thermal/CMM correlation (Renishaw E).
-8. **SPC averaging** before applying tool corrections (average of last N).
+7. ~~Bias (experience) value~~ — declined.
+8. ~~SPC averaging~~ — declined.
 9. **Fusion inspection-results format** option for the log (import into Fusion).
 10. **`o<probe_reset>`** helper to clear all optional/pending globals at program start.
 11. **Fusion post** that emits these calls, including tolerance and tool-update inputs, from Fusion probing operations.
@@ -267,6 +267,9 @@ One or two lines per feature, e.g.
 | Wireless detect | `#<_probe_wireless>` from stock PathPilot namedparams.py. |
 | Three-point | No G52 (see §7); targets computed from the start position (SIN/COS). Close vectors allowed; DEBUG warning under 15° below 3 in / 75 mm diameter, under 5° at or above. |
 | TSD script | Installs the finished macro set on a machine (back up, write, verify). |
+| Update limits | `_update_minimum` / `_update_maximum` apply to both position and size differences. |
+| Bias / SPC | Left out. |
+| G30 retract | `G30 Z#5422` moves only Z (verified on the sim). |
 | KB article | Rewrite after the macros are final. |
 | Post | A Fusion post that uses the new inputs comes later. |
 
