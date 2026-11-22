@@ -219,11 +219,11 @@ if __name__ == '__main__':
 G55 = [3.0, 3.0, 3.0]
 
 
-def run_feature(macro, world, start, params, pause='resume'):
+def run_feature(macro, world, start, params, pause='resume', wireless=0):
     p = dict(FEEDS)
     p.update(params)
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    it = Interp(world, {1: list(POS), 2: list(G55)}, 1, start, p, pause_answer=pause)
+    it = Interp(world, {1: list(POS), 2: list(G55)}, 1, start, p, pause_answer=pause, wireless=wireless)
     err = None
     try:
         it.run(os.path.join(root, macro + '.nc'))
@@ -425,6 +425,53 @@ def feature_tests():
                     '_tolerance_action': 0})
     check('log: 21 columns with tool and correction', len(it.logfile[1].split(',')) == 21 and
           it.logfile[1].split(',')[-2:] == ['5.000000', '-0.002000'], it.logfile)
+
+    # ---- orientation: R = offset - direction, spindle angle counts CW
+    def m19(it):
+        return [round(x[1], 6) for x in it.trace if x[0] == 'M19']
+    xedge = {'_first_position_to_probe': w(12.5, 0, 0)[0], '_measuring_wcs': 2, '_x_wcs_offset': 9.0}
+    it, err = run_feature('probe_x_edge', World([Wall('X', 12.0, +1)]), (11.5, 6, -8.5), dict(xedge), wireless=1)
+    check('orient x_edge +X: R0', m19(it) == [0], (err, m19(it)))
+    check('orient: result unchanged', abs(it.off[2][0] - 3.0) < 1e-9, it.off[2])
+    it, err = run_feature('probe_x_edge', World([Wall('X', 9.0, -1)]), (9.5, 6, -8.5),
+                          {'_first_position_to_probe': w(8.5, 0, 0)[0], '_measuring_wcs': 2, '_x_wcs_offset': 9.0},
+                          wireless=1)
+    check('orient x_edge -X: R180', m19(it) == [180], m19(it))
+    it, err = run_feature('probe_y_edge', World([Wall('Y', 7.0, +1)]), (11, 6.5, -8.5),
+                          {'_first_position_to_probe': w(0, 7.5, 0)[1], '_measuring_wcs': 2, '_y_wcs_offset': 4.0},
+                          wireless=1)
+    check('orient y_edge +Y: R270', m19(it) == [270], m19(it))
+    it, err = bore({}, nominal_xy=(9.0, 3.0))
+    check('wired probe: no M19', m19(it) == [], m19(it))
+    it, err = run_feature('probe_circular_bore', World([Cylinder(12.0, 6.0, 0.5, True)]), (12.03, 5.98, -8.5),
+                          {'_diameter_to_probe': 1.2, '_measuring_wcs': 2, '_x_wcs_offset': 9.0,
+                           '_y_wcs_offset': 3.0}, wireless=1)
+    check('orient circular bore +X -X +Y -Y: R0 180 270 90', m19(it) == [0, 180, 270, 90], m19(it))
+    it, err = run_feature('probe_circular_boss', World([Cylinder(12.0, 6.0, 0.5, False, ztop=-8.0)]),
+                          (12.02, 6.01, -7.5),
+                          {'_diameter_to_position': 1.5, '_first_position_to_probe': w(0, 0, -8.5)[2],
+                           '_z_clearance_position': w(0, 0, -7.5)[2], '_measuring_wcs': 2,
+                           '_x_wcs_offset': 9.0, '_y_wcs_offset': 3.0}, wireless=1)
+    check('orient circular boss (probing inward): R180 0 90 270', m19(it) == [180, 0, 90, 270], m19(it))
+    it, err = run_feature('probe_bore_three_point', World([Cylinder(12.0, 6.0, 0.5, True)]), (12.03, 5.98, -8.5),
+                          {'_first_vector': 30, '_second_vector': 150, '_third_vector': 270,
+                           '_diameter_to_probe': 1.2, '_measuring_wcs': 2, '_x_wcs_offset': 9.0,
+                           '_y_wcs_offset': 3.0, '_orient_offset': 45}, wireless=1)
+    check('orient 3pt bore 30/150/270 offset 45: R15 255 135', m19(it) == [15, 255, 135], m19(it))
+    it, err = run_feature('probe_boss_three_point', World([Cylinder(12.0, 6.0, 0.5, False, ztop=-8.0)]),
+                          (12.02, 6.01, -7.5),
+                          {'_first_vector': 0, '_second_vector': 120, '_third_vector': 240,
+                           '_diameter_to_probe': 0.8, '_diameter_to_position': 1.6,
+                           '_first_position_to_probe': w(0, 0, -8.5)[2], '_measuring_wcs': 2,
+                           '_x_wcs_offset': 9.0, '_y_wcs_offset': 3.0}, wireless=1)
+    check('orient 3pt boss 0/120/240 (inward 180/300/60): R180 60 300', m19(it) == [180, 60, 300], m19(it))
+    it, err = run_feature('probe_z', World([Floor(-9.0)]), (11, 6, -8.6),
+                          {'_first_position_to_probe': w(0, 0, -9.5)[2], '_measuring_wcs': 2,
+                           '_z_wcs_offset': -12.0, '_orient_offset': 30}, wireless=1)
+    check('orient Z uses the offset: R30', m19(it) == [30], m19(it))
+    it, err = run_feature('probe_x_edge', World([Wall('X', 12.0, +1)]), (11.5, 6, -8.5),
+                          dict(xedge, _orient_probe=0), wireless=1)
+    check('_orient_probe 0: no M19', m19(it) == [], m19(it))
 
     width = max(len(n) for n, _, _ in results)
     fails = 0

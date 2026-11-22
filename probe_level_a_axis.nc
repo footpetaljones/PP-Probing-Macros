@@ -21,6 +21,9 @@ o<probe_level_a_axis> sub
 
 G90 (set absolute mode)
 
+(orient the probe for this direction - wireless probe only)
+o<probe_orient> call [0]
+
 (first point - fast touch)
 F#<_probe_rough_feed_per_min>
 G38.2 Z#<_first_position_to_probe>
@@ -53,6 +56,9 @@ G1 Z#<_second_z_position> F#<_probe_rough_feed_per_min>
 
 #<_second_starting_position> = #5421 (second point Y in the positioning wcs)
 (PRINT, _second_starting_position is #<_second_starting_position>)
+
+(orient the probe for this direction - wireless probe only)
+o<probe_orient> call [0]
 
 (second point - fast touch)
 F#<_probe_rough_feed_per_min>

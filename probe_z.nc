@@ -12,6 +12,9 @@ o<probe_z> sub
 
 G90 (set absolute mode)
 
+(orient the probe for this direction - wireless probe only)
+o<probe_orient> call [0]
+
 (fast touch)
 F#<_probe_rough_feed_per_min>
 G38.2 Z#<_first_position_to_probe>

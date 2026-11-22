@@ -207,13 +207,16 @@ o<probe_apply_wear> call
 (finish bore with cutter compensation)
 ```
 
-### 4.6 Orientation
-- Machine capability from the wireless-probe parameter (Python file to come).
-- Before each touch direction: `M19 R[mod[K + s·θ, 360]] Q<timeout>`, where θ is the XY probing angle
-  (CCW from X+), `K` is the spindle angle that faces the calibration point toward X+, and `s` = ±1 is the
-  spindle-angle sign versus the XY angle convention. **K and s must be measured on the machine.**
-- Z touches orient to `K` (the calibration angle).
-- Requires a calibration macro that measures the effective tip diameter **with tracking on** (see §5).
+### 4.6 Orientation (implemented)
+- `o<probe_orient> call [direction]` runs before every probing direction in every macro (Z touches pass 0).
+- Only when `#<_probe_wireless>` is 1 and `#<_orient_probe>` (default 1, persists) is not 0.
+- `M19 R[[_orient_offset − direction] MOD 360] Q10`; `_orient_offset` (default 0, persists) is the spindle angle
+  that faces the calibrated stylus point toward +X. Spindle angle counts CW from above (M19 R0 → R90 is a
+  quarter turn CW), so subtracting the direction keeps the same stylus point facing the probing direction.
+- Directions: edges/pockets/bosses ±X = 0/180, ±Y = 90/270; circular bore 0,180,90,270; circular boss probes
+  inward (180,0,270,90); three-point bore = vector; three-point boss = vector + 180.
+- `machine_tests/orient_test.nc` checks the sign on the machine.
+- The effective tip diameter must be calibrated with the same orientation (calibration macro pending decision).
 
 ### 4.7 Results file
 - `/home/operator/gcode/probe_results.csv` (fixed path; PathPilot's `LOG` filename can't be parameterized).

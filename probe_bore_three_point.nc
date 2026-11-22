@@ -53,6 +53,9 @@ G90 (set absolute mode)
 #<back_x> = [#<tip_r> * COS[#<_first_vector>] * -1]
 #<back_y> = [#<tip_r> * SIN[#<_first_vector>] * -1]
 
+(orient the probe for this direction - wireless probe only)
+o<probe_orient> call [#<_first_vector>]
+
 (fast touch)
 F#<_probe_rough_feed_per_min>
 G38.2 X#<target_x> Y#<target_y>
@@ -84,6 +87,9 @@ G38.6 X#<start_x> Y#<start_y>
 #<back_x> = [#<tip_r> * COS[#<_second_vector>] * -1]
 #<back_y> = [#<tip_r> * SIN[#<_second_vector>] * -1]
 
+(orient the probe for this direction - wireless probe only)
+o<probe_orient> call [#<_second_vector>]
+
 (fast touch)
 F#<_probe_rough_feed_per_min>
 G38.2 X#<target_x> Y#<target_y>
@@ -114,6 +120,9 @@ G38.6 X#<start_x> Y#<start_y>
 #<target_y> = [#<start_y> + [#<search_r> * SIN[#<_third_vector>]]]
 #<back_x> = [#<tip_r> * COS[#<_third_vector>] * -1]
 #<back_y> = [#<tip_r> * SIN[#<_third_vector>] * -1]
+
+(orient the probe for this direction - wireless probe only)
+o<probe_orient> call [#<_third_vector>]
 
 (fast touch)
 F#<_probe_rough_feed_per_min>

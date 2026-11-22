@@ -71,6 +71,9 @@ G90 (set absolute mode)
 G1 X#<position_x> Y#<position_y> F#<_probe_rapid_feed_per_min>
 G1 Z#<_first_position_to_probe> F#<_probe_rough_feed_per_min>
 
+(orient the probe for this direction - wireless probe only)
+o<probe_orient> call [#<_first_vector> + 180]
+
 (fast touch toward the center)
 F#<_probe_rough_feed_per_min>
 G38.2 X#<target_x> Y#<target_y>
@@ -110,6 +113,9 @@ G1 X#<start_x> Y#<start_y> F#<_probe_rapid_feed_per_min>
 G1 X#<position_x> Y#<position_y> F#<_probe_rapid_feed_per_min>
 G1 Z#<_first_position_to_probe> F#<_probe_rough_feed_per_min>
 
+(orient the probe for this direction - wireless probe only)
+o<probe_orient> call [#<_second_vector> + 180]
+
 (fast touch toward the center)
 F#<_probe_rough_feed_per_min>
 G38.2 X#<target_x> Y#<target_y>
@@ -148,6 +154,9 @@ G1 X#<start_x> Y#<start_y> F#<_probe_rapid_feed_per_min>
 (position)
 G1 X#<position_x> Y#<position_y> F#<_probe_rapid_feed_per_min>
 G1 Z#<_first_position_to_probe> F#<_probe_rough_feed_per_min>
+
+(orient the probe for this direction - wireless probe only)
+o<probe_orient> call [#<_third_vector> + 180]
 
 (fast touch toward the center)
 F#<_probe_rough_feed_per_min>

@@ -16,6 +16,9 @@ o<probe_circular_bore> sub
 (PRINT, start_x is #<start_x>)
 (PRINT, start_y is #<start_y>)
 
+(orient the probe for this direction - wireless probe only)
+o<probe_orient> call [0]
+
 (+X wall - fast touch, back off, slow touch, retract)
 G91 (set incremental mode)
 F#<_probe_rough_feed_per_min>
@@ -34,6 +37,9 @@ G90 (set absolute mode)
 
 (return to start)
 G1 X#<start_x> F#<_probe_rapid_feed_per_min>
+
+(orient the probe for this direction - wireless probe only)
+o<probe_orient> call [180]
 
 (-X wall - fast touch, back off, slow touch, retract)
 G91 (set incremental mode)
@@ -58,6 +64,9 @@ G1 X#<_x_center> F#<_probe_rapid_feed_per_min>
 
 (PRINT, X complete, probing Y)
 
+(orient the probe for this direction - wireless probe only)
+o<probe_orient> call [90]
+
 (+Y wall - fast touch, back off, slow touch, retract)
 G91 (set incremental mode)
 F#<_probe_rough_feed_per_min>
@@ -76,6 +85,9 @@ G90 (set absolute mode)
 
 (return to start)
 G1 Y#<start_y> F#<_probe_rapid_feed_per_min>
+
+(orient the probe for this direction - wireless probe only)
+o<probe_orient> call [270]
 
 (-Y wall - fast touch, back off, slow touch, retract)
 G91 (set incremental mode)

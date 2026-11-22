@@ -27,6 +27,9 @@ o100 endif
 
 G90 (set absolute mode)
 
+(orient the probe for this direction - wireless probe only)
+o<probe_orient> call [90 - [90 * #<dir>]]
+
 (first side - fast touch)
 F#<_probe_rough_feed_per_min>
 G38.2 X#<_first_position_to_probe>
@@ -65,6 +68,9 @@ o200 if [#<_second_position_to_probe> GT #<_second_starting_position>]
 o200 else
 	#<dir> = -1 (probing toward -X)
 o200 endif
+
+(orient the probe for this direction - wireless probe only)
+o<probe_orient> call [90 - [90 * #<dir>]]
 
 (second side - fast touch)
 F#<_probe_rough_feed_per_min>
