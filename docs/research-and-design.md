@@ -1,7 +1,7 @@
 # CAM Driven Probing — Research Findings and Design Proposal
 
-Status: **proposal, awaiting approval.** No macro logic has been changed yet.
-Branch `macro-update-2026-11` holds the baseline (the macro set supplied 2026-11-22).
+Status: **in progress.** Branch `macro-update-2026-11`: baseline, style cleanup, three-point fix and
+trip-point accuracy are committed (see §7). New features not started.
 
 ---
 
@@ -134,17 +134,17 @@ nominal (only valid when the two are the same), and no tolerance/tool feedback l
 | `#<_log_results>` | 0 | Append one CSV line per feature to the results file. |
 | `#<_feature_number>` | 0 | Integer tag written to the log/DEBUG. |
 | `#<_nominal_size>` | — | Expected width/diameter (size features). Enables size checks. |
-| `#<_size_tol_plus>` / `#<_size_tol_minus>` | — | Size tolerance band (positive magnitudes). |
-| `#<_position_tol>` | — | ± per-axis position tolerance in the measuring WCS. |
+| `#<_size_tolerance_plus>` / `#<_size_tolerance_minus>` | — | Size tolerance band (positive magnitudes). |
+| `#<_position_tolerance>` | — | ± per-axis position tolerance in the measuring WCS. |
 | `#<_upper_limit>` | — | Gross-error limit (size or position). Exceeded → no WCS set, no tool update, status 3. |
-| `#<_tol_action>` | 1 | Out of tolerance: 0 flag only, 1 pause (`M0` + DEBUG; cycle start resumes), 2 abort. |
+| `#<_tolerance_action>` | 1 | Out of tolerance: 0 flag only, 1 pause (DEBUG, G90, retract to G30, `M0 (feature out of tolerance)`; cycle start accepts), 2 abort. |
 | `#<_update_tool>` | 0 | Tool number to correct (cut-measure-cut). 0 = off. |
 | `#<_update_feedback>` | 1.0 | Fraction of the error applied (Renishaw F). |
 | `#<_update_null_band>` | 0 | No tool update when \|error\| is inside this band (Renishaw V). |
 
 Nominal position for the tolerance check reuses `_x/_y/_z_wcs_offset`: the measured feature position
 in the **measuring** WCS before any update is compared to it. In inspect mode that is the inspection
-deviation; in set mode it is the WCS shift, so `_position_tol` / `_upper_limit` work as a
+deviation; in set mode it is the WCS shift, so `_position_tolerance` / `_upper_limit` work as a
 "wrong part / wrong vise" sanity check.
 
 ### 4.3 Outputs (globals, readable by the calling program after the call)
@@ -173,7 +173,8 @@ Existing outputs (`_x_center`, `_y_center`, `_first_x_touch`, …) stay, in posi
 8. Tool update if `_update_tool` > 0 and \|error\| > null band:
    internal feature `ΔD = +error·F`, external `ΔD = −error·F`, face `ΔL = −error·F`.
 9. Outputs, DEBUG, log line.
-10. Out of tolerance → `_tol_action` (flag / pause / abort).
+10. Out of tolerance → `_tolerance_action` (flag / pause / abort). Pause and abort happen **before** the
+    WCS set / wear update; those run only after Cycle Start (queue buster after the M0).
 11. Restore positioning WCS, clear consumed optional inputs.
 
 ### 4.5 Cut-measure-cut flow
@@ -182,10 +183,10 @@ Example calling program (finish bore with semi-finish allowance):
 (semi-finish bore with T5, leaving ~0.005 on diameter)
 T99 G43 H99 M6
 #<_nominal_size> = 0.7450 (semi-finish target)
-#<_size_tol_plus> = 0.0020
-#<_size_tol_minus> = 0.0020
+#<_size_tolerance_plus> = 0.0020
+#<_size_tolerance_minus> = 0.0020
 #<_upper_limit> = 0.020
-#<_tol_action> = 0 (flag only, program branches below)
+#<_tolerance_action> = 0 (flag only, program branches below)
 #<_set_wcs> = 0 (inspect only)
 #<_update_tool> = 5
 o<probe_circular_bore> call
@@ -249,5 +250,54 @@ One or two lines per feature, e.g.
 
 ---
 
-## 6. Decisions needed
-See the chat reply for the short list; answers will be recorded here.
+## 6. Decisions (2026-11-22)
+
+| # | Decision |
+|---|---|
+| Names | Spell out "tolerance": `_size_tolerance_plus/_minus`, `_position_tolerance`, `_tolerance_action`. |
+| Tool correction | **Wear offsets, G-code only.** Probe macro stores a pending correction; `o<probe_apply_tool_update>` runs after the tool change, reads #5409/#5411, writes `G10 L1 P W/I`, re-issues G43. |
+| Out of tolerance default | Pause: DEBUG with the numbers, `G90`, retract via G30, `M0 (feature out of tolerance)`. |
+| Trip point | Approved; done. |
+| Retracts | Keep G91/G90 pairs, tidied; done. |
+| Log | CSV, one line per feature (Audacity's Fusion format needs a post; revisit with our post). |
+| Wireless detect | `#<_probe_wireless>` from stock PathPilot namedparams.py. |
+| Three-point | No G52 (see §7); targets computed from the start position. |
+| TSD script | Installs the finished macro set on a machine (back up, write, verify). |
+| KB article | Rewrite after the macros are final. |
+| Post | A Fusion post that uses the new inputs comes later. |
+
+## 7. Findings and work since the proposal
+
+### Three-point and G52
+LinuxCNC G52 exists but shares the G92 registers (#5210–5219). On PathPilot those are saved in
+`emc.var` (present in the 1500MX backup), so an abort mid-cycle would leave a shift on **every** WCS,
+across restarts. A scratch WCS leaves itself active (#5220 is saved) and overwrites an offset.
+Computing targets from the start position changes nothing until the final `G10 L20`; that is what
+the fix does (the Audacity repo does the same — no polar words anywhere).
+
+### Wear offsets (PathPilot 2.14 mill, from the backup)
+- Stored in the tool table `mill_data/tool2.tbl`, not in `emc.var` (which only holds #5161–5390, #5650–5653):
+  length wear in the **W** field, diameter wear in the **I** field (`T1 … Z+1.0 W+0.001 I+0.0002`).
+- Sim test (G20 and G21): #5403, #5409, #5410, #5411 return the same numbers in both modes → always inches;
+  wrap with `U_INCH[]`. `G10 L1 P1 I0.0005` + `G43` updated #5411 to 0.0005.
+- Open: whether `G10 L1 W/I` values are converted in G21; whether #5409 is length wear
+  (it read .0020 before the write in the test).
+
+### Orientation
+`M19 R0` then `M19 R90` turned the spindle CW viewed from above (quarter vs three-quarter turn to confirm).
+If a quarter turn, spindle angle increases CW, so tracking uses `R = K − θ` (θ CCW from +X).
+
+### Commits on `macro-update-2026-11`
+1. Baseline (macros as supplied).
+2. Style cleanup of the 10 single-axis/circular macros — simulated traces identical to baseline.
+3. Three-point fix — Cartesian targets, X/Y start return, circumcenter, 20° spacing check, trip coordinates.
+4. Trip-point accuracy — all touches from #5061–#5063; edge/corner/Z `G10 L20` corrected for overtravel.
+
+### Tools
+- `tools/check_macros.py` — static checks (o-word pairing, brackets, malformed parameters, un-bracketed math, `GG`).
+- `tools/sim_macros.py`, `tools/test_macros.py` — G-code subset simulator against modeled parts;
+  `--compare REV` diffs every move and offset write against another revision.
+
+### Not in scope yet (found by the checker in macros not supplied for this update)
+- `probe_z_for_position`: `GG38.6` (line 39), malformed `#<_measuring_wcs)`.
+- `probe_level_a_axis`: assignments without `[ ]` (lines 91, 95, 101), malformed `#_a_angle>`.
