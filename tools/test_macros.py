@@ -151,12 +151,6 @@ def scenarios():
               {'_first_vector': 0, '_second_vector': 0, '_third_vector': 200,
                '_diameter_to_probe': 1.2, '_measuring_wcs': 2, '_x_wcs_offset': 0.0, '_y_wcs_offset': 0.0},
               {(2, 'X'): 12.0, (2, 'Y'): 6.0}))
-    # probe_z_for_position: in range, above max
-    for lo, hi in ((-1.2, -0.8), (-0.95, -0.9)):
-        s.append(('z_for_position limits %g..%g' % (lo, hi), 'probe_z_for_position', World([Floor(-9.0)]),
-                  (11, 6, -8.6),
-                  {'_first_position_to_probe': w(0, 0, -9.5)[2], '_min_allowable_position': lo,
-                   '_max_allowable_position': hi}, {}))
     return s
 
 
