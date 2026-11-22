@@ -216,7 +216,7 @@ o<probe_apply_wear> call
 - Directions: edges/pockets/bosses ±X = 0/180, ±Y = 90/270; circular bore 0,180,90,270; circular boss probes
   inward (180,0,270,90); three-point bore = vector; three-point boss = vector + 180.
 - `machine_tests/orient_test.nc` checks the sign on the machine.
-- The effective tip diameter must be calibrated with the same orientation (calibration macro pending decision).
+- Probe calibration is done in PathPilot (no calibration macro).
 
 ### 4.7 Results file
 - `/home/operator/gcode/probe_results.csv` (fixed path; PathPilot's `LOG` filename can't be parameterized).
@@ -241,8 +241,7 @@ One or two lines per feature, e.g.
 ---
 
 ## 5. Suggested additional functionality
-1. **Probe calibration macros** — ring-gauge effective diameter (with tracking when wireless), stylus
-   X/Y offset, length on a gauge block. Required for tracking to be valid.
+1. ~~Probe calibration macros~~ — declined; PathPilot calibration is used.
 2. **Clear probe-miss handling** — fast approach with `G38.3`, check `#5070`, then a specific abort
    ("no surface within travel") or flag-only for unattended runs.
 3. **Edge skew / WCS rotation** — two touches on one edge → angle → `G10 L2 R`; optional abort if over a limit.
@@ -273,6 +272,8 @@ One or two lines per feature, e.g.
 | Update limits | `_update_minimum` / `_update_maximum` apply to both position and size differences. |
 | Bias / SPC | Left out. |
 | G30 retract | `G30 Z#5422` moves only Z (verified on the sim). |
+| Calibration macro | Not needed: PathPilot's probe calibration is used. |
+| M19 capability check | Not needed: only machines with spindle orientation can be set to a wireless probe. |
 | KB article | Rewrite after the macros are final. |
 | Post | A Fusion post that uses the new inputs comes later. |
 
