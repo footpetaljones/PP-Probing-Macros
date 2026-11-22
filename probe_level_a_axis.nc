@@ -1,106 +1,100 @@
 o<probe_level_a_axis> sub
+(probe_level_a_axis: touch Z at two Y positions on a face held in the A axis and rotate the A origin)
+(of the measuring wcs so that face is level - intended for manual use)
+(start above the first point at the probing height; both touches use _first_position_to_probe as the Z target)
+(required: _first_position_to_probe, _second_x_position, _second_y_position, _second_z_position)
+(required: _z_clearance_position, _measuring_wcs)
 
-(PRINT, begin probe_a_axis_level probe)
+(PRINT, begin probe_level_a_axis)
 (PRINT, _first_position_to_probe is #<_first_position_to_probe>)
-(PRINT, _second_position_to_probe is #<_second_position_to_probe>)
 (PRINT, _second_x_position is #<_second_x_position>)
 (PRINT, _second_y_position is #<_second_y_position>)
 (PRINT, _second_z_position is #<_second_z_position>)
 (PRINT, _z_clearance_position is #<_z_clearance_position>)
 (PRINT, _measuring_wcs is #<_measuring_wcs>)
-(PRINT, _a_wcs_offset is #<_a_wcs_offset>)
-(DEBUG, Previous G54.1 P#<_measuring_wcs> A offset is #<_work_offset_a>)
 
-#<_first_starting_position> = #5421
-
+#<_first_starting_position> = #5421 (first point Y in the positioning wcs)
+#<start_wcs> = #5220 (positioning wcs)
+#<tip_r> = [[U_INCH[#5410]] / 2] (probe tip radius in program units)
 (PRINT, _first_starting_position is #<_first_starting_position>)
+(PRINT, start_wcs is #<start_wcs>)
 
-G90 (set to absolute mode)
+G90 (set absolute mode)
 
-#1 = #5420 (current relative X position)
-#2 = #5421 (current relative Y position)
-#3 = #5422 (current relative Z position)
-#4 = #5220 (current active wcs)
-(PRINT, # 1 is #1)
-(PRINT, # 2 is #2)
-(PRINT, # 3 is #3)
-(PRINT, # 4 is #4)
-
-(fast probe)
+(first point - fast touch)
 F#<_probe_rough_feed_per_min>
 G38.2 Z#<_first_position_to_probe>
-(PRINT, first touch successful)
+(PRINT, first point fast touch successful)
 
-(first retract)
-G91 (set to incremental mode)
+(back off)
+G91 (set incremental mode)
 F#<_probe_rough_feed_per_min>
-o100 if [#<_metric> EQ 1]  
-	G38.6 Z.1
-	o100 else
-	G38.6 Z.05
-o100 endif
+G38.6 Z#<tip_r>
+G90 (set absolute mode)
 
-G90 (set to absolute mode)
-
-(slow probe)
+(slow touch)
 F#<_probe_fine_feed_per_min>
 G38.2 Z#<_first_position_to_probe>
-(PRINT, second touch successful)
+(PRINT, first point slow touch successful)
 
-#10 = #5063
-(PRINT, first Z touch at Z#10)
+#<first_z> = #5063 (trip point)
+(PRINT, first Z touch at #<first_z>)
 
+(retract)
+G91 (set incremental mode)
+F#<_probe_rough_feed_per_min>
+G38.6 Z#<tip_r>
+G90 (set absolute mode)
+
+(move to the second point)
 G1 Z#<_z_clearance_position> F#<_probe_rapid_feed_per_min>
-
-(PRINT, moving to second probing position)
-G1 X#<_second_x_position> Y#<_second_y_position>
+G1 X#<_second_x_position> Y#<_second_y_position> F#<_probe_rapid_feed_per_min>
 G1 Z#<_second_z_position> F#<_probe_rough_feed_per_min>
 
-#<_second_starting_position> = #5421
-
+#<_second_starting_position> = #5421 (second point Y in the positioning wcs)
 (PRINT, _second_starting_position is #<_second_starting_position>)
 
-(fast probe)
+(second point - fast touch)
 F#<_probe_rough_feed_per_min>
 G38.2 Z#<_first_position_to_probe>
-(PRINT, first touch successful)
+(PRINT, second point fast touch successful)
 
-(first retract)
-G91 (set to incremental mode)
+(back off)
+G91 (set incremental mode)
 F#<_probe_rough_feed_per_min>
-o100 if [#<_metric> EQ 1]  
-	G38.6 Z.1
-	o100 else
-	G38.6 Z.05
-o100 endif
+G38.6 Z#<tip_r>
+G90 (set absolute mode)
 
-G90 (set to absolute mode)
-
-(slow probe)
+(slow touch)
 F#<_probe_fine_feed_per_min>
 G38.2 Z#<_first_position_to_probe>
-(PRINT, second touch successful)
+(PRINT, second point slow touch successful)
 
-#11 = #5063
-(PRINT, second Z touch at Z#11)
+#<second_z> = #5063 (trip point)
+(PRINT, second Z touch at #<second_z>)
 
-(PRINT, retracting Z axis to clearance position of #<_z_clearance_position)
+(retract)
+G91 (set incremental mode)
+F#<_probe_rough_feed_per_min>
+G38.6 Z#<tip_r>
+G90 (set absolute mode)
+
 G1 Z#<_z_clearance_position> F#<_probe_rapid_feed_per_min>
 
-(PRINT, calculating Y distance)
-#<_y_distance> = #<_first_starting_position> - #<_second_starting_position>
+(angle of the face - ATAN of the ratio keeps the result within +-90 degrees)
+#<_y_distance> = [#<_first_starting_position> - #<_second_starting_position>]
+#<_z_difference> = [#<first_z> - #<second_z>]
 (PRINT, Y distance is #<_y_distance>)
-
-(PRINT, calculating Z difference)
-#<_z_difference> = #10 - #11
 (PRINT, Z difference is #<_z_difference>)
+#<_a_angle> = ATAN[#<_z_difference> / #<_y_distance>]/[1]
+(PRINT, A axis angle is #<_a_angle> degrees)
 
-(PRINT, calculating A axis angle and setting work coordinate)
-#<_a_angle> = ATAN[#<_z_difference> / #<_y_distance>]
-(PRINT, A axis angle is #_a_angle> degrees)
-#<_new_a_offset> = #<_work_offset_a> - #<_a_angle>
-(PRINT, New A axis offset is #<_new_a_offset>)
-G10 L2 P#<_measuring_wcs> A#<_new_a_offset>
-(PRINT, New G54.1 P#<_measuring_wcs> A offset set to #<_new_a_offset>)
+(rotate the measuring wcs A origin by the angle: the current A reading increases by _a_angle)
+G54.1 P#<_measuring_wcs>
+#<a_before> = #5423 (current A in the measuring wcs)
+G10 L20 P#5220 A[#<a_before> + #<_a_angle>]
+(DEBUG, G54.1 P#<_measuring_wcs> A origin rotated by #<_a_angle> degrees)
+G54.1 P#<start_wcs>
 
+(PRINT, end probe_level_a_axis)
 o<probe_level_a_axis> endsub

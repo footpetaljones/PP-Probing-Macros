@@ -257,6 +257,7 @@ class Interp:
         self.trip = [0.0, 0.0, 0.0]
         self.spindle = None
         self.named.setdefault('_probe_wireless', float(wireless))
+        self.named.setdefault('_metric', 0.0)
         self.pause_answer = pause_answer
         self.paused = False
 

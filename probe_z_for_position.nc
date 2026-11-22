@@ -1,62 +1,61 @@
 o<probe_z_for_position> sub
-(Probe in x positive or negative direction and set 0)
+(probe_z_for_position: touch Z and check the height is between two limits - no WCS is set)
+(retracts to G30 before checking so an out-of-range result stops with the probe clear)
+(required: _first_position_to_probe, _min_allowable_position, _max_allowable_position)
+(limits and the result are in the positioning wcs)
 
-(PRINT, begin probe_z probe)
+(PRINT, begin probe_z_for_position)
 (PRINT, _first_position_to_probe is #<_first_position_to_probe>)
-(PRINT, _measuring_wcs is #<_measuring_wcs)
-(PRINT, _z_wcs_offset is #<_z_wcs_offset>)
+(PRINT, _min_allowable_position is #<_min_allowable_position>)
+(PRINT, _max_allowable_position is #<_max_allowable_position>)
 
-G90 (set to absolute mode)
+#<start_z> = #5422 (start Z in the positioning wcs)
+#<tip_r> = [[U_INCH[#5410]] / 2] (probe tip radius in program units)
 
-(fast probe)
-F#<_probe_rough_feed_per_min>
-G38.2 Z#<_first_position_to_probe>
-(PRINT, first touch successful)
-
-(first retract)
-G91 (set to incremental mode)
-F#<_probe_rough_feed_per_min>
-o100 if [#<_metric> EQ 1]  
-	G38.6 Z.1
-	o100 else
-	G38.6 Z.05
+o100 if [#<_first_position_to_probe> LT #<start_z>]
+	#<dir> = -1 (probing down)
+o100 else
+	#<dir> = 1 (probing up)
 o100 endif
 
-G90 (set to absolute mode)
+G90 (set absolute mode)
 
-(slow probe)
+(fast touch)
+F#<_probe_rough_feed_per_min>
+G38.2 Z#<_first_position_to_probe>
+(PRINT, fast touch successful)
+
+(back off)
+G91 (set incremental mode)
+F#<_probe_rough_feed_per_min>
+G38.6 Z[#<tip_r> * #<dir> * -1]
+G90 (set absolute mode)
+
+(slow touch)
 F#<_probe_fine_feed_per_min>
 G38.2 Z#<_first_position_to_probe>
-(PRINT, second touch successful)
+(PRINT, slow touch successful)
 
-(second retract)
-G91 (set to incremental mode)
+#<_z_position_found> = #5063 (trip point)
+(PRINT, _z_position_found is #<_z_position_found>)
+
+(retract)
+G91 (set incremental mode)
 F#<_probe_rough_feed_per_min>
-o130 if [#<_metric> EQ 1]  
-	o140 if [#<_first_position_to_probe> LT 0]
-	G38.6 Z-.1
-	o140 else
-	GG38.6 Z.1
-	o140 endif
-o130 else
-	o150 if [#<_first_position_to_probe> GT 0]
-	G38.6 Z-.05
-	o150 else
-	G38.6 Z.05
-	o150 endif
-o130 endif
-
-G90 (set to absolute mode)
+G38.6 Z[#<tip_r> * #<dir> * -1]
+G90 (set absolute mode)
 
 G30
 
-o200 if [#5063 GT #<_max_allowable_position>]
-	(ABORT, Probed Z value of #5063 is greater than maximum allowed value #<_max_allowable_position>)
-	o200 endif
-	
-o210 if [#5063 LT #<_min_allowable_position>]
-	(ABORT, Probed Z value of #5063 is less than minumum allowed value #<_min_allowable_position>)
-	o210 endif
+o200 if [#<_z_position_found> GT #<_max_allowable_position>]
+	(DEBUG, probed Z #<_z_position_found> is above the maximum #<_max_allowable_position>)
+	(ABORT, Probed Z value of #<_z_position_found> is greater than maximum allowed value #<_max_allowable_position>)
+o200 endif
 
-(PRINT, end probe_z probe)
+o210 if [#<_z_position_found> LT #<_min_allowable_position>]
+	(DEBUG, probed Z #<_z_position_found> is below the minimum #<_min_allowable_position>)
+	(ABORT, Probed Z value of #<_z_position_found> is less than minimum allowed value #<_min_allowable_position>)
+o210 endif
+
+(PRINT, end probe_z_for_position)
 o<probe_z_for_position> endsub

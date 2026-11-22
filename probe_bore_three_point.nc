@@ -1,7 +1,8 @@
 o<probe_bore_three_point> sub
 (probe_bore_three_point: probe three points inside a bore and set the XY origin of the measuring wcs to the center)
 (start inside the bore near its center at the probing height)
-(vectors are probing directions in degrees CCW from +X and must be at least 20 degrees apart)
+(vectors are probing directions in degrees CCW from +X)
+(a warning is shown when vectors are closer than 15 degrees under 3 in / 75 mm diameter or 5 degrees above)
 (targets are computed from the start position so any positioning wcs can be used)
 (required: _first_vector, _second_vector, _third_vector, _diameter_to_probe)
 (required: _measuring_wcs, _x_wcs_offset, _y_wcs_offset)
@@ -24,7 +25,7 @@ o<probe_bore_three_point> sub
 (PRINT, start_y is #<start_y>)
 (PRINT, start_wcs is #<start_wcs>)
 
-(check vector spacing)
+(vector spacing - used for the accuracy warning)
 #<sep_12> = [ABS[#<_first_vector> - #<_second_vector>] MOD 360]
 #<sep_13> = [ABS[#<_first_vector> - #<_third_vector>] MOD 360]
 #<sep_23> = [ABS[#<_second_vector> - #<_third_vector>] MOD 360]
@@ -37,10 +38,13 @@ o110 endif
 o120 if [#<sep_23> GT 180]
 	#<sep_23> = [360 - #<sep_23>]
 o120 endif
-o130 if [[#<sep_12> LT 20] OR [#<sep_13> LT 20] OR [#<sep_23> LT 20]]
-	(DEBUG, probe_bore_three_point vectors #<_first_vector> #<_second_vector> #<_third_vector>)
-	(ABORT, probe_bore_three_point - vectors must be at least 20 degrees apart)
+#<min_sep> = #<sep_12>
+o130 if [#<sep_13> LT #<min_sep>]
+	#<min_sep> = #<sep_13>
 o130 endif
+o140 if [#<sep_23> LT #<min_sep>]
+	#<min_sep> = #<sep_23>
+o140 endif
 
 G90 (set absolute mode)
 
@@ -157,6 +161,24 @@ o300 endif
 #<_y_center> = [#<start_y> + [[[#<n1> * [#<p3_x> - #<p2_x>]] + [#<n2> * [#<p1_x> - #<p3_x>]] + [#<n3> * [#<p2_x> - #<p1_x>]]] / #<den>]]
 (PRINT, _x_center is #<_x_center>)
 (PRINT, _y_center is #<_y_center>)
+
+(measured diameter and vector spacing warning)
+#<cx_rel> = [#<_x_center> - #<start_x>]
+#<cy_rel> = [#<_y_center> - #<start_y>]
+#<touch_r> = SQRT[[[#<p1_x> - #<cx_rel>] * [#<p1_x> - #<cx_rel>]] + [[#<p1_y> - #<cy_rel>] * [#<p1_y> - #<cy_rel>]]]
+#<measured_diameter> = [2 * [#<touch_r> + #<tip_r>]]
+(PRINT, measured_diameter is #<measured_diameter>)
+#<small_diameter> = 3.0 (inch)
+o310 if [#<_metric> EQ 1]
+	#<small_diameter> = 75.0 (mm)
+o310 endif
+#<sep_limit> = 5
+o320 if [#<measured_diameter> LT #<small_diameter>]
+	#<sep_limit> = 15
+o320 endif
+o330 if [#<min_sep> LT #<sep_limit>]
+	(DEBUG, probe_bore_three_point warning - vectors only #<min_sep> deg apart on a #<measured_diameter> bore - center may be inaccurate)
+o330 endif
 
 (move to center and set measuring wcs)
 G1 X#<_x_center> Y#<_y_center> F#<_probe_rough_feed_per_min>

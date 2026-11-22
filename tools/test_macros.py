@@ -118,7 +118,7 @@ def scenarios():
               {'_first_vector': 45, '_second_vector': 170, '_third_vector': 290,
                '_diameter_to_probe': 1.4, '_measuring_wcs': 1, '_x_wcs_offset': 2.5, '_y_wcs_offset': -1.0},
               {(1, 'X'): 9.5, (1, 'Y'): 7.0}))
-    # vectors too close together -> clean abort
+    # close vectors: allowed, warning under 15 deg below 3 in, under 5 deg at 3 in and up
     s.append(('bore_three_point 10 deg apart', 'probe_bore_three_point',
               World([Cylinder(12.0, 6.0, 0.5, True)]), (12.03, 5.98, -8.5),
               {'_first_vector': 0, '_second_vector': 10, '_third_vector': 200,
@@ -129,6 +129,34 @@ def scenarios():
               {'_first_vector': 350, '_second_vector': 5, '_third_vector': 180,
                '_diameter_to_probe': 1.2, '_measuring_wcs': 2, '_x_wcs_offset': 0.0, '_y_wcs_offset': 0.0},
               {(2, 'X'): 12.0, (2, 'Y'): 6.0}))
+    s.append(('bore_three_point 4in bore 10 deg', 'probe_bore_three_point',
+              World([Cylinder(12.0, 6.0, 2.0, True)]), (12.03, 5.98, -8.5),
+              {'_first_vector': 0, '_second_vector': 10, '_third_vector': 200,
+               '_diameter_to_probe': 4.4, '_measuring_wcs': 2, '_x_wcs_offset': 0.0, '_y_wcs_offset': 0.0},
+              {(2, 'X'): 12.0, (2, 'Y'): 6.0}))
+    s.append(('bore_three_point 4in bore 3 deg', 'probe_bore_three_point',
+              World([Cylinder(12.0, 6.0, 2.0, True)]), (12.03, 5.98, -8.5),
+              {'_first_vector': 0, '_second_vector': 3, '_third_vector': 200,
+               '_diameter_to_probe': 4.4, '_measuring_wcs': 2, '_x_wcs_offset': 0.0, '_y_wcs_offset': 0.0},
+              {(2, 'X'): 12.0, (2, 'Y'): 6.0}))
+    s.append(('boss_three_point 10 deg apart', 'probe_boss_three_point',
+              World([Cylinder(12.0, 6.0, 0.5, False, ztop=-8.0)]), (12.02, 6.01, -7.5),
+              {'_first_vector': 0, '_second_vector': 10, '_third_vector': 200,
+               '_diameter_to_probe': 0.8, '_diameter_to_position': 1.6,
+               '_first_position_to_probe': w(0, 0, -8.5)[2],
+               '_measuring_wcs': 2, '_x_wcs_offset': 0.0, '_y_wcs_offset': 0.0},
+              {(2, 'X'): 12.0, (2, 'Y'): 6.0}))
+    s.append(('bore_three_point same vector twice', 'probe_bore_three_point',
+              World([Cylinder(12.0, 6.0, 0.5, True)]), (12.03, 5.98, -8.5),
+              {'_first_vector': 0, '_second_vector': 0, '_third_vector': 200,
+               '_diameter_to_probe': 1.2, '_measuring_wcs': 2, '_x_wcs_offset': 0.0, '_y_wcs_offset': 0.0},
+              {(2, 'X'): 12.0, (2, 'Y'): 6.0}))
+    # probe_z_for_position: in range, above max
+    for lo, hi in ((-1.2, -0.8), (-0.95, -0.9)):
+        s.append(('z_for_position limits %g..%g' % (lo, hi), 'probe_z_for_position', World([Floor(-9.0)]),
+                  (11, 6, -8.6),
+                  {'_first_position_to_probe': w(0, 0, -9.5)[2], '_min_allowable_position': lo,
+                   '_max_allowable_position': hi}, {}))
     return s
 
 
@@ -153,7 +181,7 @@ def report(it, err, expect):
         got = it.off[n]['XYZ'.index(ax)]
         worst = max(worst, abs(got - val))
         parts.append('%s%d %+.5f' % (ax, n, got - val))
-    flags = []
+    flags = ['DEBUG: ' + m for k, m in it.messages if k == 'DEBUG']
     if it.collisions:
         flags.append('COLLISION %s' % (it.collisions[0],))
     if it.active != 1:
