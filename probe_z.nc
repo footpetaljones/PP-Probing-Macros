@@ -27,8 +27,9 @@ F#<_probe_fine_feed_per_min>
 G38.2 Z#<_first_position_to_probe>
 (PRINT, slow touch successful)
 
-(set measuring wcs)
-G10 L20 P#<_measuring_wcs> Z#<_z_wcs_offset>
+(set measuring wcs at the trip point)
+#<overtravel> = [#5422 - #5063] (stopped position minus trip point)
+G10 L20 P#<_measuring_wcs> Z[#<_z_wcs_offset> + #<overtravel>]
 
 (retract)
 G91 (set incremental mode)

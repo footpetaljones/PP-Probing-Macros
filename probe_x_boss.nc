@@ -44,7 +44,7 @@ F#<_probe_fine_feed_per_min>
 G38.2 X#<_first_position_to_probe>
 (PRINT, first side slow touch successful)
 
-#<_first_x_touch> = #5061
+#<_first_x_touch> = #5061 (trip point)
 (PRINT, _first_x_touch is #<_first_x_touch>)
 
 (retract)
@@ -83,7 +83,7 @@ F#<_probe_fine_feed_per_min>
 G38.2 X#<_second_position_to_probe>
 (PRINT, second side slow touch successful)
 
-#<_second_x_touch> = #5061
+#<_second_x_touch> = #5061 (trip point)
 (PRINT, _second_x_touch is #<_second_x_touch>)
 
 (retract)

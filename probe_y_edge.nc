@@ -36,9 +36,10 @@ F#<_probe_fine_feed_per_min>
 G38.2 Y#<_first_position_to_probe>
 (PRINT, slow touch successful)
 
-(set measuring wcs - the probe center is one tip radius short of the edge)
+(set measuring wcs - the probe center was one tip radius short of the edge at the trip point)
+#<overtravel> = [#5421 - #5062] (stopped position minus trip point, positioning wcs)
 G54.1 P#<_measuring_wcs>
-G10 L20 P#5220 Y[#<_y_wcs_offset> - [#<tip_r> * #<dir>]]
+G10 L20 P#5220 Y[#<_y_wcs_offset> - [#<tip_r> * #<dir>] + #<overtravel>]
 
 (retract)
 G91 (set incremental mode)

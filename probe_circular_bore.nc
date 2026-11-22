@@ -27,7 +27,7 @@ G38.6 X[#<tip_r> * -1]
 F#<_probe_fine_feed_per_min>
 G38.2 X[#<_diameter_to_probe> / 2]
 (PRINT, +X slow touch successful)
-#<_first_x_touch> = #5420
+#<_first_x_touch> = #5061 (trip point)
 (PRINT, _first_x_touch is #<_first_x_touch>)
 F#<_probe_rough_feed_per_min>
 G38.6 X[#<tip_r> * -1]
@@ -46,7 +46,7 @@ G38.6 X#<tip_r>
 F#<_probe_fine_feed_per_min>
 G38.2 X[#<_diameter_to_probe> / -2]
 (PRINT, -X slow touch successful)
-#<_second_x_touch> = #5420
+#<_second_x_touch> = #5061 (trip point)
 (PRINT, _second_x_touch is #<_second_x_touch>)
 F#<_probe_rough_feed_per_min>
 G38.6 X#<tip_r>
@@ -72,7 +72,7 @@ G38.6 Y[#<tip_r> * -1]
 F#<_probe_fine_feed_per_min>
 G38.2 Y[#<_diameter_to_probe> / 2]
 (PRINT, +Y slow touch successful)
-#<_first_y_touch> = #5421
+#<_first_y_touch> = #5062 (trip point)
 (PRINT, _first_y_touch is #<_first_y_touch>)
 F#<_probe_rough_feed_per_min>
 G38.6 Y[#<tip_r> * -1]
@@ -91,7 +91,7 @@ G38.6 Y#<tip_r>
 F#<_probe_fine_feed_per_min>
 G38.2 Y[#<_diameter_to_probe> / -2]
 (PRINT, -Y slow touch successful)
-#<_second_y_touch> = #5421
+#<_second_y_touch> = #5062 (trip point)
 (PRINT, _second_y_touch is #<_second_y_touch>)
 F#<_probe_rough_feed_per_min>
 G38.6 Y#<tip_r>
