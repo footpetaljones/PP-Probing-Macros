@@ -8,8 +8,6 @@ o<probe_circular_boss> sub
 (PRINT, _measuring_wcs is #<_measuring_wcs>)
 (PRINT, _x_wcs_offset is #<_x_wcs_offset>)
 (PRINT, _y_wcs_offset is #<_y_wcs_offset>)
-(DEBUG, Previous G54.1 P#<_measuring_wcs> X offset is #<_work_offset_x>)
-(DEBUG, Previous G54.1 P#<_measuring_wcs> Y offset is #<_work_offset_y>)
 
 G90 (set to absolute mode)
 
@@ -35,7 +33,7 @@ G38.2 X#1
 (first retract)
 G91 (set to incremental mode)
 F#<_probe_rough_feed_per_min>
-G38.6 X[#5410/2]
+G38.6 X[[U_INCH[#5410]]/2]
 G90 (set to absolute mode)
 
 (slow probe)
@@ -49,7 +47,7 @@ G38.2 X#1
 (second retract)
 G91 (set to incremental mode)
 F#<_probe_rough_feed_per_min>
-G38.6 X[#5410/2]
+G38.6 X[[U_INCH[#5410]]/2]
 G90 (set to absolute mode)
 
 G1 Z#<_z_clearance_position> F#<_probe_rapid_feed_per_min>
@@ -66,7 +64,7 @@ G38.2 X#1
 (first retract)
 G91 (set to incremental mode)
 F#<_probe_rough_feed_per_min>
-G38.6 X[[#5410/2]*-1]
+G38.6 X[[[U_INCH[#5410]]/2]*-1]
 G90 (set to absolute mode)
 
 (slow probe)
@@ -80,18 +78,17 @@ G38.2 X#1
 (X finished retract)
 G91 (set to incremental mode)
 F#<_probe_rough_feed_per_min>
-G38.6 X[[#5410/2]*-1]
+G38.6 X[[[U_INCH[#5410]]/2]*-1]
 G90 (set to absolute mode)
 
 G1 Z#<_z_clearance_position> F#<_probe_rapid_feed_per_min>
 
 (PRINT, centering x)
-#<_x_center> = [#<_first_x_touch> + #<_second_x_touch>]
+#<_x_center> = [[#<_first_x_touch> + #<_second_x_touch>]/2]
 (PRINT, _x_center is #<_x_center>)
 G1 X#<_x_center> F#<_probe_rapid_feed_per_min>
 G54.1 P#<_measuring_wcs>
 G10 L20 P#5220 X#<_x_wcs_offset> 
-(DEBUG, Found G54.1 P#<_measuring_wcs> X offset is #<_work_offset_x>)
 G54.1 P#4
 
 (PRINT, probing of x complete, begin probing of y)
@@ -108,7 +105,7 @@ G38.2 Y#2
 (first retract)
 G91 (set to incremental mode)
 F#<_probe_rough_feed_per_min>
-G38.6 Y[#5410/2]
+G38.6 Y[[U_INCH[#5410]]/2]
 G90 (set to absolute mode)
 
 (slow probe)
@@ -122,7 +119,7 @@ G38.2 Y#2
 (second retract)
 G91 (set to incremental mode)
 F#<_probe_rough_feed_per_min>
-G38.6 Y[#5410/2]
+G38.6 Y[[U_INCH[#5410]]/2]
 G90 (set to absolute mode)
 
 G1 Z#<_z_clearance_position> F#<_probe_rapid_feed_per_min>
@@ -139,7 +136,7 @@ G38.2 Y#2
 (first retract)
 G91 (set to incremental mode)
 F#<_probe_rough_feed_per_min>
-G38.6 Y[[#5410/2]*-1]
+G38.6 Y[[[U_INCH[#5410]]/2]*-1]
 G90 (set to absolute mode)
 
 (slow probe)
@@ -153,7 +150,7 @@ G38.2 Y#2
 (Y finished retract)
 G91 (set to incremental mode)
 F#<_probe_rough_feed_per_min>
-G38.6 Y[[#5410/2]*-1]
+G38.6 Y[[[U_INCH[#5410]]/2]*-1]
 G90 (set to absolute mode)
 
 G1 Z#<_z_clearance_position> F#<_probe_rapid_feed_per_min>
@@ -164,7 +161,6 @@ G1 Z#<_z_clearance_position> F#<_probe_rapid_feed_per_min>
 G1 Y#<_y_center> F#<_probe_rapid_feed_per_min>
 G54.1 P#<_measuring_wcs>
 G10 L20 P#5220 Y#<_y_wcs_offset>
-(DEBUG, Found G54.1 P#<_measuring_wcs> Y offset is #<_work_offset_y>)
 G54.1 P#4
 
 (PRINT, end probe_bore_four_point probe)

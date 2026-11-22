@@ -10,8 +10,6 @@ o<probe_x_boss> sub
 (PRINT, _z_clearance_position is #<_z_clearance_position>)
 (PRINT, _measuring_wcs is #<_measuring_wcs>)
 (PRINT, _x_wcs_offset is #<_x_wcs_offset>)
-(DEBUG, Previous G54.1 P#<_measuring_wcs> X  offset is #<_work_offset_x>)
-
 
 #<_first_starting_position> = #5420
 
@@ -37,9 +35,9 @@ G38.2 X#<_first_position_to_probe>
 G91 (set to incremental mode)
 F#<_probe_rough_feed_per_min>
 o100 if [#<_first_position_to_probe> GT #<_first_starting_position>]
-	G38.6 X[[#5410/2]*-1]
+	G38.6 X[[[U_INCH[#5410]]/2]*-1]
 	o100 else
-	G38.6 X[#5410/2]
+	G38.6 X[[U_INCH[#5410]]/2]
 o100 endif
 
 G90 (set to absolute mode)
@@ -56,9 +54,9 @@ G38.2 X#<_first_position_to_probe>
 G91 (set to incremental mode)
 F#<_probe_rough_feed_per_min>
 o110 if [#<_first_position_to_probe> GT #<_first_starting_position>]
-	G38.6 X[[#5410/2]*-1]
+	G38.6 X[[[U_INCH[#5410]]/2]*-1]
 	o110 else
-	G38.6 X[#5410/2]
+	G38.6 X[[U_INCH[#5410]]/2]
 o110 endif
 
 G90 (set to absolute mode)
@@ -66,7 +64,7 @@ G90 (set to absolute mode)
 G1 Z#<_z_clearance_position> F#<_probe_rapid_feed_per_min>
 
 (second X position)
-G1 X#<_second_x_position> Y#<_second_y_position> 
+G1 X#<_second_x_position> Y#<_second_y_position>
 G1 Z#<_second_z_position> F#<_probe_rough_feed_per_min>
 
 #<_second_starting_position> = #5420
@@ -82,9 +80,9 @@ G38.2 X#<_second_position_to_probe>
 G91 (set to incremental mode)
 F#<_probe_rough_feed_per_min>
 o200 if [#<_second_position_to_probe> GT #<_second_starting_position>]
-	G38.6 X[[#5410/2]*-1]
+	G38.6 X[[[U_INCH[#5410]]/2]*-1]
 	o200 else
-	G38.6 X[#5410/2]
+	G38.6 X[[U_INCH[#5410]]/2]
 o200 endif
 
 G90 (set to absolute mode)
@@ -101,9 +99,9 @@ G38.2 X#<_second_position_to_probe>
 G91 (set to incremental mode)
 F#<_probe_rough_feed_per_min>
 o210 if [#<_second_position_to_probe> GT #<_second_starting_position>]
-	G38.6 X[[#5410/2]*-1]
+	G38.6 X[[[U_INCH[#5410]]/2]*-1]
 	o210 else
-	G38.6 X[#5410/2]
+	G38.6 X[[U_INCH[#5410]]/2]
 o210 endif
 
 G90 (set to absolute mode)
@@ -115,9 +113,7 @@ G1 Z#<_z_clearance_position> F#<_probe_rapid_feed_per_min>
 (PRINT, _x_center is #<_x_center>)
 G1 X#<_x_center>
 G54.1 P#<_measuring_wcs>
-G10 L20 P#5220 X#<_x_wcs_offset> 
-(DEBUG, Found G54.1 P#<_measuring_wcs> X offset is #<_work_offset_x>) 
-
+G10 L20 P#5220 X#<_x_wcs_offset>
 G54.1 P#4
 
 (PRINT, end probe_x_boss)

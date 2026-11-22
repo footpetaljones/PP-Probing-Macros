@@ -5,8 +5,6 @@ o<probe_y_edge> sub
 (PRINT, _first_position_to_probe is #<_first_position_to_probe>)
 (PRINT, _measuring_wcs is #<_measuring_wcs>)
 (PRINT, _y_wcs_offset is #<_y_wcs_offset>)
-(DEBUG, Previous G54.1 P#<_measuring_wcs> Y offset is #<_work_offset_y>)
-
 
 #<_first_starting_position> = #5421
 
@@ -23,9 +21,9 @@ G38.2 Y#<_first_position_to_probe>
 G91 (set to incremental mode)
 F#<_probe_rough_feed_per_min>
 o100 if [#<_first_position_to_probe> GT #<_first_starting_position>]
-	G38.6 Y[[#5410/2]*-1]
+	G38.6 Y[[[U_INCH[#5410]]/2]*-1]
 	o100 else
-	G38.6 Y[#5410/2]
+	G38.6 Y[[U_INCH[#5410]]/2]
 o100 endif
 
 G90 (set to absolute mode)
@@ -38,21 +36,18 @@ G38.2 Y#<_first_position_to_probe>
 G54.1 P#<_measuring_wcs>
 
 o160 if [#<_first_position_to_probe> GT #<_first_starting_position>]
-    G10 L20 P#5220 Y[#<_y_wcs_offset> - [#5410/2]]
+    G10 L20 P#5220 Y[#<_y_wcs_offset> - [[U_INCH[#5410]]/2]]
     o160 else
-    G10 L20 P#5220 Y[#<_y_wcs_offset> + [#5410/2]]
+    G10 L20 P#5220 Y[#<_y_wcs_offset> + [[U_INCH[#5410]]/2]]
 o160 endif
-
-(DEBUG, Found G54.1 P#<_measuring_wcs> Y offset is #<_work_offset_y>)
-
 
 (second retract)
 G91 (set to incremental mode)
 F#<_probe_rough_feed_per_min>
 o110 if [#<_first_position_to_probe> GT #<_first_starting_position>]
-	G38.6 Y[[#5410/2]*-1]
+	G38.6 Y[[[U_INCH[#5410]]/2]*-1]
 	o110 else
-	G38.6 Y[#5410/2]
+	G38.6 Y[[U_INCH[#5410]]/2]
 o110 endif
 
 G90 (set to absolute mode)
@@ -61,4 +56,3 @@ G90 (set to absolute mode)
 o<probe_y_edge> endsub
 
 M02 (end program)
-

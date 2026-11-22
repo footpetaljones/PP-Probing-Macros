@@ -8,8 +8,6 @@ o<probe_bore_three_point> sub
 (PRINT, _measuring_wcs is #<_measuring_wcs>)
 (PRINT, _x_wcs_offset is #<_x_wcs_offset>)
 (PRINT, _y_wcs_offset is #<_y_wcs_offset>)
-(DEBUG, Previous G54.1 P#<_measuring_wcs> X offset is #<_work_offset_x>)
-(DEBUG, Previous G54.1 P#<_measuring_wcs> Y offset is #<_work_offset_y>)
 
 #1 = #5420 (current relative X position)
 #2 = #5421 (current relative Y position)
@@ -28,7 +26,7 @@ G38.2 @#<_diameter_to_probe> ^#<_first_vector>
 
 (first retract)
 G91 (set incremental mode)
-G38.6 @[[#5410/2]*-1]
+G38.6 @[[[U_INCH[#5410]]/2]*-1]
 G90 (set absolute mode)
 
 (slow probe)
@@ -52,7 +50,7 @@ G38.2 @#<_diameter_to_probe> ^#<_second_vector>
 
 (second retract)
 G91 (set incremental mode)
-G38.6 @[[#5410/2]*-1]
+G38.6 @[[[U_INCH[#5410]]/2]*-1]
 G90 (set absolute mode)
 
 (slow probe)
@@ -76,7 +74,7 @@ G38.2 @#<_diameter_to_probe> ^#<_third_vector>
 
 (third retract)
 G91 (set incremental mode)
-G38.6 @[[#5410/2]*-1]
+G38.6 @[[[U_INCH[#5410]]/2]*-1]
 G90 (set absolute mode)
 
 (slow probe)
@@ -120,8 +118,6 @@ G38.6 X#1 Y#1 F#<_probe_rapid_feed_per_min>
 G1 X#<_x_center> Y#<_y_center> F#<_probe_rough_feed_per_min>
 G54.1 P#<_measuring_wcs>
 G10 L20 P#5220 X#<_x_wcs_offset> Y#<_y_wcs_offset>
-(DEBUG, Found G54.1 P#<_measuring_wcs> X offset is #<_work_offset_x>)
-(DEBUG, Found G54.1 P#<_measuring_wcs> Y offset is #<_work_offset_y>)
 G54.1 P#4
 
 (PRINT, end probe_bore_three_point)
