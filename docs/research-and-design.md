@@ -261,7 +261,7 @@ One or two lines per feature, e.g.
 | Retracts | Keep G91/G90 pairs, tidied; done. |
 | Log | CSV, one line per feature (Audacity's Fusion format needs a post; revisit with our post). |
 | Wireless detect | `#<_probe_wireless>` from stock PathPilot namedparams.py. |
-| Three-point | No G52 (see §7); targets computed from the start position. |
+| Three-point | No G52 (see §7); targets computed from the start position (SIN/COS). Close vectors allowed; DEBUG warning under 15° below 3 in / 75 mm diameter, under 5° at or above. |
 | TSD script | Installs the finished macro set on a machine (back up, write, verify). |
 | KB article | Rewrite after the macros are final. |
 | Post | A Fusion post that uses the new inputs comes later. |
@@ -284,20 +284,21 @@ the fix does (the Audacity repo does the same — no polar words anywhere).
   (it read .0020 before the write in the test).
 
 ### Orientation
-`M19 R0` then `M19 R90` turned the spindle CW viewed from above (quarter vs three-quarter turn to confirm).
-If a quarter turn, spindle angle increases CW, so tracking uses `R = K − θ` (θ CCW from +X).
+`M19 R0` then `M19 R90` turned the spindle a quarter turn CW viewed from above: spindle angle increases CW,
+so tracking uses `R = K − θ` (θ = probing direction, CCW from +X; K = optional global, default 0).
 
 ### Commits on `macro-update-2026-11`
 1. Baseline (macros as supplied).
 2. Style cleanup of the 10 single-axis/circular macros — simulated traces identical to baseline.
 3. Three-point fix — Cartesian targets, X/Y start return, circumcenter, 20° spacing check, trip coordinates.
 4. Trip-point accuracy — all touches from #5061–#5063; edge/corner/Z `G10 L20` corrected for overtravel.
+5. Decisions/findings recorded in this doc.
+6. Three-point spacing warning; `probe_z_for_position` and `probe_level_a_axis` fixes; `machine_tests/wear_offset_units.nc`.
 
 ### Tools
 - `tools/check_macros.py` — static checks (o-word pairing, brackets, malformed parameters, un-bracketed math, `GG`).
 - `tools/sim_macros.py`, `tools/test_macros.py` — G-code subset simulator against modeled parts;
   `--compare REV` diffs every move and offset write against another revision.
 
-### Not in scope yet (found by the checker in macros not supplied for this update)
-- `probe_z_for_position`: `GG38.6` (line 39), malformed `#<_measuring_wcs)`.
-- `probe_level_a_axis`: assignments without `[ ]` (lines 91, 95, 101), malformed `#_a_angle>`.
+### probe_z_for_position / probe_level_a_axis
+Fixed in commit 6 (typos and syntax that would stop the program; see the commit message).
