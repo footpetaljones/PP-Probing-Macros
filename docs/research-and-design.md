@@ -1,0 +1,253 @@
+# CAM Driven Probing — Research Findings and Design Proposal
+
+Status: **proposal, awaiting approval.** No macro logic has been changed yet.
+Branch `macro-update-2026-11` holds the baseline (the macro set supplied 2026-11-22).
+
+---
+
+## 1. Three-point macro defect (item 4)
+
+### Root cause
+`probe_bore_three_point` and `probe_boss_three_point` position and probe with
+polar words (`@` / `^`). In LinuxCNC/PathPilot, polar coordinates are always
+referenced to the **XY zero of the active WCS**, not to the current position.
+In G91 they are still origin-referenced; `@` and `^` are added to the current
+point's radius and angle *about the WCS origin*.
+
+The macros therefore only work when the positioning WCS XY zero is already at
+(or very near) the feature center. That is normally true when the positioning
+WCS and the measuring WCS are the same and have been set to that bore before,
+and normally false when positioning from a different WCS (vise corner, fixture
+datum, etc.). That matches the reported symptom.
+
+### What actually happens (bore, positioned from a WCS whose zero is elsewhere)
+Simulation: bore Ø1.000 at X3.0 Y2.0 in the positioning WCS, probe Ø0.100,
+`_diameter_to_probe` = 1.2, vectors 0/120/240, probe started at the bore center.
+
+| Vector | `G38.2 @1.2 ^v` target | Touch lands at | "Retract" `G91 G38.6 @-r` |
+|---|---|---|---|
+| 0°   | X+1.200 Y+0.000 | 228° on the bore | drives stylus 0.048" **into** the wall |
+| 120° | X−0.600 Y+1.039 | 195° | 0.047" into the wall |
+| 240° | X−0.600 Y−1.039 | 220° | 0.050" into the wall |
+
+G38.6 ignores probe input (Tormach G38 reference), so nothing stops the
+retract. The following fine `G38.2` then starts with the probe already
+tripped and errors. On the boss macro, `G1 @r ^v` sends the probe to a point
+around the WCS zero and then feeds Z down there — a crash risk.
+
+### Additional defects in the same two macros
+1. `G38.6 X#1 Y#1` (return to start) uses the start **X** for Y. Should be `Y#2`.
+   Masked when the start point is X0 Y0, which is the only case that works today.
+2. Bore: `G38.2 @#<_diameter_to_probe>` uses the diameter as a radius → 2× overtravel.
+3. Center calculation divides by `variable4` = −(P2.y − P1.y). Any vector set
+   where touches 1 and 2 share a Y value (e.g. 30/150/270) → divide-by-zero.
+4. Boss: `(PRINT, _diameter_to_position is #<_diameter_to_position)` is missing `>`.
+
+### Fix
+Compute Cartesian targets from the start point: `X = start_x + R·cos(v)`,
+`Y = start_y + R·sin(v)`; retract along `−u(v)`; return with `X#1 Y#2`; solve the
+center with the determinant (circumcenter) form and abort cleanly if the three
+points are collinear/too close. Same inputs, same outputs, works from any WCS.
+
+---
+
+## 2. Other defects and inconsistencies found in the baseline
+
+| Macro | Finding | Impact |
+|---|---|---|
+| x/y_pocket, circular_bore/boss, 3-pt | Touches read `#5420/#5421` (position after decel) instead of `#5061/#5062` (trip point). | Width/diameter reads large by 2× overtravel; centers mostly cancel. x/y_boss already use `#5061/#5062` — inconsistent. |
+| x/y_edge, xy_corner, z | `G10 L20` executed at the stopped position, not the trip point. | WCS off by the decel overtravel (feed²/2·accel, plus servo lag). Fixable without changing any input parameter. |
+| x/y_edge, xy_corner | Leave the **measuring** WCS active on exit; other macros restore the positioning WCS. z uses `G10 L20 P#<_measuring_wcs>` without switching. | Inconsistent caller contract (callers currently re-issue G54). |
+| circular_bore | Ignores `_diameter_to_position` / `_z_clearance_position`, but the KB article says it supports obstacles via those parameters. | Article/macro mismatch. |
+| circular_boss | Second X positioning move uses rough feed; Y uses rapid feed. | Cosmetic. |
+| x_pocket | `G90 (set to incremental mode)` comment. Header says "Probe in y…". | Cosmetic. |
+| y_pocket, circular_boss, xy_corner | End PRINT names the wrong macro. | Cosmetic. |
+| x/y_boss, xy_corner | `G1` positioning moves without an F word (inherit modal F). | Implicit behavior. |
+| several | `M02` after `endsub` in some files only; mixed tabs/4-spaces; `o100 else` indented inside its own block. | Style. |
+| KB article | Chart marks `_first_position_to_probe` as required for circular_bore (macro doesn't use it). Three-point boss uses `_first_position_to_probe` as the **Z** probing height; article describes it as X. | Docs. |
+
+---
+
+## 3. Research summary
+
+### PathPilot / LinuxCNC facts the design relies on
+- **G38.6** (PathPilot extension): move away from the workpiece, **ignoring probe input**.
+- **#5061–#5063**: coordinates at the moment the probe tripped (not where it stopped), in the WCS active at the time.
+- **Polar `@ ^`**: referenced to the active WCS XY zero in both G90 and G91.
+- **(DEBUG,…)** substitutes parameters and goes to the Status tab; the tab turns yellow but PathPilot does not switch to it. An `M0`/`M1` comment line shows at that line only.
+- **(LOGAPPEND,file) / (LOG,…) / (LOGCLOSE)** write text with parameter substitution. The filename is literal (no parameter substitution) and directories are not created.
+- **No wear offsets on PathPilot mills.** `G10 L1 P<tool> R<radius>` / `Z<length>` writes the tool table; only words given are changed.
+- **M19 R<angle> Q<timeout>** orients the MX spindle (ATC uses `M19 R0 Q10`).
+- **Global named parameters** persist across programs until PathPilot restarts. An optional global set by one program **leaks into the next** unless it is cleared.
+- `EXISTS[#<_name>]` is available to test whether an optional global was set.
+
+### Tolerance and cut-measure-cut practice
+- **Renishaw Inspection Plus** optional inputs: `H` size tolerance, `M` true-position tolerance,
+  `U` upper limit (exceeded → no WCS/tool update, stop), `V` null band (no tool update inside),
+  `F` feedback fraction 0–1, `T` tool offset to update, `E` experience (bias) value,
+  `S` work offset to update, `W` print/log. Outputs `#185–#199` include position, size, errors,
+  true-position error, **metal condition**, an out-of-tolerance flag (`#198`) and a probe-error flag (`#199`).
+  Two reaction modes: "flag and alarm" (stop, cycle start resumes) or "flag only" for unattended cells.
+- **Renishaw AP301 / AP302 (cut-measure-cut / dynamic re-machining):** semi-finish or slave feature →
+  measure → if on size continue; if **metal on** (material remains) update tool and re-cut;
+  if **metal off** reject/scrap.
+- **Heidenhain** inspection cycles return **good / rework / scrap** (Q183) with a reaction setting
+  (Q309: 0 don't stop, 1 stop on rework or scrap, 2 stop on scrap only) and write a measuring log.
+- **Heidenhain TRACK:** orients the probe to the programmed probe direction before every touch so the
+  stylus always deflects the same way; the probe must be recalibrated when TRACK is enabled.
+
+### Why orientation tracking works (and what it requires)
+With the spindle angle locked to the probing direction, stylus eccentricity *e* at phase φ contributes
+a constant `e·cos φ` along every probing direction. It becomes part of the effective tip radius, so
+single-surface (edge) results and centers are both free of run-out, and directional lobing is removed
+because the probe is always deflected in the same body direction.
+This only holds if the effective tip diameter was **calibrated with the same tracking**. A diameter
+calibrated at a fixed orientation will be wrong in tracking mode.
+
+### Comparison repo (AudacityMicro/TormachInspectionMacros)
+Already fixed the same 3-pt issues (Cartesian targets, Y#2, determinant center), switched to `#506x`
+trip coordinates, adds a `_dont_change_WCS` flag and Fusion-format `RESULTS.TXT` logging via
+`LOGAPPEND`. Weaknesses: deviations computed in the positioning WCS but compared to the measuring-WCS
+nominal (only valid when the two are the same), and no tolerance/tool feedback logic.
+
+---
+
+## 4. Proposed design
+
+### 4.1 Principles
+1. **WCS-setting core unchanged.** Every existing required parameter keeps its meaning; calling programs
+   written to the current article keep working with no edits.
+2. All new behavior is driven by **optional** globals, tested with `EXISTS[]`, defaulting to today's behavior.
+3. Optional inputs are **consumed**: each macro clears them on exit so they can't leak into the next call.
+4. Shared logic lives in helper subroutines so the 12 macros stay small:
+   - `o<probe_orient> call [direction_deg]` — M19 when wireless + enabled, otherwise no-op.
+   - `o<probe_evaluate> call [...]` — deviations, tolerance status, action, tool update, outputs, DEBUG, log.
+5. Every move absolute except where an incremental retract is clearer; mode restored to G90 on exit.
+
+### 4.2 Optional inputs (all default to current behavior)
+
+| Parameter | Default | Meaning |
+|---|---|---|
+| `#<_set_wcs>` | 1 | 0 = inspect only (measure, evaluate, don't touch the WCS). |
+| `#<_orient_probe>` | −1 | −1 auto (orient only if machine has a wireless probe), 0 never, 1 force (still refused on a wired probe). |
+| `#<_display_results>` | 1 | DEBUG summary to the Status tab. |
+| `#<_log_results>` | 0 | Append one CSV line per feature to the results file. |
+| `#<_feature_number>` | 0 | Integer tag written to the log/DEBUG. |
+| `#<_nominal_size>` | — | Expected width/diameter (size features). Enables size checks. |
+| `#<_size_tol_plus>` / `#<_size_tol_minus>` | — | Size tolerance band (positive magnitudes). |
+| `#<_position_tol>` | — | ± per-axis position tolerance in the measuring WCS. |
+| `#<_upper_limit>` | — | Gross-error limit (size or position). Exceeded → no WCS set, no tool update, status 3. |
+| `#<_tol_action>` | 1 | Out of tolerance: 0 flag only, 1 pause (`M0` + DEBUG; cycle start resumes), 2 abort. |
+| `#<_update_tool>` | 0 | Tool number to correct (cut-measure-cut). 0 = off. |
+| `#<_update_feedback>` | 1.0 | Fraction of the error applied (Renishaw F). |
+| `#<_update_null_band>` | 0 | No tool update when \|error\| is inside this band (Renishaw V). |
+
+Nominal position for the tolerance check reuses `_x/_y/_z_wcs_offset`: the measured feature position
+in the **measuring** WCS before any update is compared to it. In inspect mode that is the inspection
+deviation; in set mode it is the WCS shift, so `_position_tol` / `_upper_limit` work as a
+"wrong part / wrong vise" sanity check.
+
+### 4.3 Outputs (globals, readable by the calling program after the call)
+
+| Parameter | Meaning |
+|---|---|
+| `#<_result_x>` `#<_result_y>` `#<_result_z>` | Feature position in the measuring WCS before any update. |
+| `#<_result_size>` | Measured width/diameter (size features). |
+| `#<_result_x_dev>` `_y_dev` `_z_dev` `#<_result_size_dev>` | Measured − nominal. |
+| `#<_result_tp_dev>` | True-position deviation, 2·√(dx²+dy²). |
+| `#<_result_status>` | 0 good, 1 rework (metal on), 2 scrap (metal off), 3 upper limit exceeded. |
+| `#<_result_wcs_set>` | 1 if the WCS was updated. |
+| `#<_result_tool_delta>` | Diameter (XY) or length (Z) correction computed for `_update_tool`. |
+
+Existing outputs (`_x_center`, `_y_center`, `_first_x_touch`, …) stay, in positioning-WCS coordinates.
+
+### 4.4 Evaluation order (per feature)
+1. Probe; touches from `#5061–#5063`.
+2. Compute feature position (positioning WCS) and size.
+3. Move to center (center features, as today).
+4. Switch to the measuring WCS; read the current position → measured position in the measuring WCS; deviations.
+5. Upper limit exceeded → status 3, skip 6–7, log/display, then **abort** (or flag only if `_tol_action` = 0).
+6. If `_set_wcs` = 1 → `G10 L20` exactly as today (trip-point corrected).
+7. Size status: in tolerance → 0. Out: metal on → 1, metal off → 2.
+   (Internal features: undersize = metal on. External: oversize = metal on.)
+8. Tool update if `_update_tool` > 0 and \|error\| > null band:
+   internal feature `ΔD = +error·F`, external `ΔD = −error·F`, face `ΔL = −error·F`.
+9. Outputs, DEBUG, log line.
+10. Out of tolerance → `_tol_action` (flag / pause / abort).
+11. Restore positioning WCS, clear consumed optional inputs.
+
+### 4.5 Cut-measure-cut flow
+Example calling program (finish bore with semi-finish allowance):
+```
+(semi-finish bore with T5, leaving ~0.005 on diameter)
+T99 G43 H99 M6
+#<_nominal_size> = 0.7450 (semi-finish target)
+#<_size_tol_plus> = 0.0020
+#<_size_tol_minus> = 0.0020
+#<_upper_limit> = 0.020
+#<_tol_action> = 0 (flag only, program branches below)
+#<_set_wcs> = 0 (inspect only)
+#<_update_tool> = 5
+o<probe_circular_bore> call
+o100 if [#<_result_status> EQ 2]
+  (ABORT, bore oversize at semi-finish - scrap)
+o100 endif
+T5 G43 H5 M6
+(finish bore with corrected T5 diameter)
+```
+**Applying the tool correction** — two options, decision needed:
+- **A (pure G-code, recommended):** the probe macro stores a pending correction
+  (`_pending_tool`, `_pending_tool_delta`). After the tool change, `o<probe_apply_tool_update> call`
+  reads `#5410` for the loaded tool, writes `G10 L1 P#5400 R[...]`, re-issues `G43`, and clears the pending value.
+- **B (Python):** a named-parameter function in the user Python file returns the tool-table diameter/length
+  for the tool number in `#<_update_tool>`, so the probe macro can write `G10 L1` immediately.
+
+### 4.6 Orientation
+- Machine capability from the wireless-probe parameter (Python file to come).
+- Before each touch direction: `M19 R[mod[K + s·θ, 360]] Q<timeout>`, where θ is the XY probing angle
+  (CCW from X+), `K` is the spindle angle that faces the calibration point toward X+, and `s` = ±1 is the
+  spindle-angle sign versus the XY angle convention. **K and s must be measured on the machine.**
+- Z touches orient to `K` (the calibration angle).
+- Requires a calibration macro that measures the effective tip diameter **with tracking on** (see §5).
+
+### 4.7 Results file
+- `/home/operator/gcode/probe_results.csv` (fixed path; PathPilot's `LOG` filename can't be parameterized).
+- One line per feature:
+  `epoch, feature_number, macro, measuring_wcs, set_wcs, nominal_x, meas_x, dev_x, …, size_nom, size_meas, size_dev, status, tool, tool_delta`.
+- `LOGAPPEND` → `LOG` → `LOGCLOSE` per feature so the file is readable while a program runs.
+
+### 4.8 Display (DEBUG)
+One or two lines per feature, e.g.
+`(DEBUG, F3 probe_circular_bore G55: X+0.00012 Y-0.00031 D0.74930 dev-0.00070 REWORK)`
+
+### 4.9 Style conventions applied in the cleanup
+- Header block per macro: purpose, required inputs, optional inputs, outputs.
+- Comments lower-case, consistent wording (`(set absolute mode)` etc.).
+- `o`-word numbering by section (100s first touch, 200s second touch, 300s calc, 900s evaluate);
+  tab indentation, `else` aligned with `if`.
+- Named locals instead of `#1–#4`; tip radius computed once (`#<tip_r> = [U_INCH[#5410]/2]`).
+- F on every motion line; rapid feed for clearance moves, rough feed toward the part.
+- No `M02` after `endsub`; LF line endings; trailing newline.
+- Every macro restores G90 and the positioning WCS on exit.
+
+---
+
+## 5. Suggested additional functionality
+1. **Probe calibration macros** — ring-gauge effective diameter (with tracking when wireless), stylus
+   X/Y offset, length on a gauge block. Required for tracking to be valid.
+2. **Clear probe-miss handling** — fast approach with `G38.3`, check `#5070`, then a specific abort
+   ("no surface within travel") or flag-only for unattended runs.
+3. **Edge skew / WCS rotation** — two touches on one edge → angle → `G10 L2 R`; optional abort if over a limit.
+4. **Rectangular boss/pocket in one call** (X and Y), and **angled single surface / angled web**.
+5. **Circular bore with obstacle** (implement what the article already describes).
+6. **Auto-repeat** for three-point routines (re-probe once from the found center).
+7. **Bias (experience) value** for size — thermal/CMM correlation (Renishaw E).
+8. **SPC averaging** before applying tool corrections (average of last N).
+9. **Fusion inspection-results format** option for the log (import into Fusion).
+10. **`o<probe_reset>`** helper to clear all optional/pending globals at program start.
+11. **Fusion post** that emits these calls, including tolerance and tool-update inputs, from Fusion probing operations.
+
+---
+
+## 6. Decisions needed
+See the chat reply for the short list; answers will be recorded here.
