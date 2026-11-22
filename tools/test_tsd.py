@@ -1,20 +1,26 @@
 #!/usr/bin/env python3
-"""Run tsd/install_probing_macros.py against stub PathPilot modules in a throw-away home folder.
+"""Run the two TSD scripts against stub PathPilot modules in a throw-away home folder.
 
-    python3 tools/test_tsd.py
+    python3 tools/test_tsd.py [--python /usr/bin/python2.7]
 
+--python runs the TSD scripts under another interpreter (PathPilot's TSD scripts use Python 2).
 Stubs: linuxcnc (stat, ini), redis (INI path), diagnostic_script_util / halsampler_manager
 (the TSD base class: log, start_new_session, save_logs, result_dict, stat).
 """
-import hashlib
+import argparse
 import os
 import shutil
 import subprocess
 import sys
 import tempfile
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SCRIPT = os.path.join(ROOT, 'tsd', 'install_probing_macros.py')
+TOOLS = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(TOOLS)
+sys.path.insert(0, TOOLS)
+import build_tsd  # noqa: E402
+
+INSTALL = os.path.join(ROOT, 'tsd', 'install_probing_macros.py')
+RESTORE = os.path.join(ROOT, 'tsd', 'restore_original_probing_macros.py')
 
 STUBS = {
     'linuxcnc.py': '''
@@ -69,95 +75,173 @@ class DiagnosticTestBase(object):
 }
 
 
-def macros_in_repo():
-    names = sorted(f for f in os.listdir(ROOT) if f.startswith('probe_') and f.endswith('.nc'))
-    return {n: open(os.path.join(ROOT, n), 'rb').read() for n in names}
+def write(path, data):
+    with open(path, 'wb') as f:
+        f.write(data if isinstance(data, bytes) else data.encode('utf-8'))
 
 
-def run(home, env_extra):
-    stubs = os.path.join(home, 'stubs')
-    env = dict(os.environ, HOME=home, PYTHONPATH=stubs, STUB_INI_PATH=os.path.join(home, 'tmc', 'mill.ini'))
-    env.setdefault('STUB_SUBROUTINE_PATH', os.path.join(home, 'gcode', 'subroutines'))
-    env.update(env_extra)
-    out = subprocess.run([sys.executable, SCRIPT], env=env, capture_output=True, text=True)
-    return out.returncode, out.stdout + out.stderr
+def read(path):
+    with open(path, 'rb') as f:
+        return f.read()
+
+
+def make_home():
+    """A PathPilot-like home: ~/tmc -> ~/v2.10.0, original macros in ~/tmc/subroutines."""
+    home = tempfile.mkdtemp()
+    os.makedirs(os.path.join(home, 'stubs'))
+    for name, text in STUBS.items():
+        write(os.path.join(home, 'stubs', name), text)
+    os.makedirs(os.path.join(home, 'configs'))
+    os.makedirs(os.path.join(home, 'v2.10.0', 'subroutines'))
+    os.symlink(os.path.join(home, 'v2.10.0'), os.path.join(home, 'tmc'))
+    os.makedirs(os.path.join(home, 'gcode', 'subroutines'))
+    return home
+
+
+def run(python, script, home, env_extra=None):
+    tmc_sub = os.path.join(home, 'tmc', 'subroutines')
+    user_sub = os.path.join(home, 'gcode', 'subroutines')
+    env = dict(os.environ, HOME=home, PYTHONPATH=os.path.join(home, 'stubs'),
+               STUB_INI_PATH=os.path.join(home, 'configs', 'mill.ini'),
+               STUB_SUBROUTINE_PATH=user_sub + ':' + tmc_sub)
+    env.update(env_extra or {})
+    p = subprocess.Popen([python, script], env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    out = p.communicate()[0].decode('utf-8', 'replace')
+    return p.returncode, out
+
+
+def backups(home):
+    gcode = os.path.join(home, 'gcode')
+    return sorted(os.path.join(gcode, d) for d in os.listdir(gcode) if d.startswith('probing_macros_backup_'))
+
+
+def snapshot(folder):
+    return {f: read(os.path.join(folder, f)) for f in sorted(os.listdir(folder))
+            if os.path.isfile(os.path.join(folder, f))}
 
 
 def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--python', default=sys.executable, help='interpreter for the TSD scripts')
+    python = ap.parse_args().python
+
+    new = {n: t.encode('utf-8') for n, t in build_tsd.repo_set().items()}
+    original = {n: t.encode('utf-8') for n, t in build_tsd.commit_set(build_tsd.ORIGINAL_COMMIT).items()}
     results = []
 
     def check(name, cond, detail=''):
         results.append((name, bool(cond), detail))
 
-    repo = macros_in_repo()
-    home = tempfile.mkdtemp()
+    homes = []
     try:
-        os.makedirs(os.path.join(home, 'stubs'))
-        for name, text in STUBS.items():
-            open(os.path.join(home, 'stubs', name), 'w').write(text)
-        sub = os.path.join(home, 'gcode', 'subroutines')
-        os.makedirs(sub)
-        os.makedirs(os.path.join(home, 'tmc'))
-        # machine state before: an old probe_x_edge, an obsolete macro, a user file, an up-to-date probe_z
-        open(os.path.join(sub, 'probe_x_edge.nc'), 'w').write('o<probe_x_edge> sub\n(old)\no<probe_x_edge> endsub\n')
-        open(os.path.join(sub, 'probe_z_for_position.nc'), 'w').write('(obsolete)\n')
-        open(os.path.join(sub, 'set_tool_length.nc'), 'w').write('(user file)\n')
-        open(os.path.join(sub, 'probe_z.nc'), 'wb').write(repo['probe_z.nc'])
+        # ---- a machine with the original macros (one locally edited) and an unrelated stock file
+        home = make_home()
+        homes.append(home)
+        tmc = os.path.join(home, 'tmc', 'subroutines')
+        user = os.path.join(home, 'gcode', 'subroutines')
+        for name, data in original.items():
+            write(os.path.join(tmc, name), data)
+        write(os.path.join(tmc, 'probe_x_edge.nc'), 'o<probe_x_edge> sub\n(edited)\no<probe_x_edge> endsub\n')
+        write(os.path.join(tmc, 'other_stock.ngc'), '(stock file)\n')
+        write(os.path.join(user, 'set_tool_length.nc'), '(user file)\n')
+        os.chmod(os.path.join(tmc, 'probe_y_edge.nc'), 0o664)
+        before = snapshot(tmc)
 
-        # program running: nothing changes
-        code, out = run(home, {'STUB_INTERP_STATE': '2'})
-        check('running program: refused', 'a program is running' in out and 'STATUS None' in out, out)
-        check('running program: old file kept', b'(old)' in open(os.path.join(sub, 'probe_x_edge.nc'), 'rb').read())
+        code, out = run(python, INSTALL, home, {'STUB_INTERP_STATE': '2'})
+        check('install, program running: refused', 'a program is running' in out and 'STATUS None' in out, out)
+        check('install, program running: nothing changed', snapshot(tmc) == before and not backups(home))
 
-        # first install
-        code, out = run(home, {})
+        damaged = os.path.join(home, 'damaged.py')
+        text = read(INSTALL).decode('utf-8')
+        write(damaged, text.replace('o<probe_result> sub', 'o<probe_result> sub ', 1))
+        code, out = run(python, damaged, home)
+        check('install, damaged script: refused', 'embedded copy of probe_result.nc is damaged' in out, out)
+        check('install, damaged script: nothing changed', snapshot(tmc) == before and not backups(home))
+
+        code, out = run(python, INSTALL, home)
         check('install: completes', code == 0 and 'STATUS complete' in out, out)
-        same = all(open(os.path.join(sub, n), 'rb').read() == t for n, t in repo.items())
-        check('install: every macro matches the repo', same)
-        check('install: 15 written, 1 up to date', '15 written, 1 already up to date' in out, out)
-        backups = [d for d in os.listdir(sub) if d.startswith('probing_macros_backup_')]
-        check('install: one backup folder', len(backups) == 1, backups)
-        bdir = os.path.join(sub, backups[0]) if backups else ''
-        check('backup: old probe_x_edge saved',
-              backups and b'(old)' in open(os.path.join(bdir, 'probe_x_edge.nc'), 'rb').read())
-        check('backup: obsolete probe_z_for_position moved',
-              backups and os.path.isfile(os.path.join(bdir, 'probe_z_for_position.nc')) and
-              not os.path.exists(os.path.join(sub, 'probe_z_for_position.nc')))
-        check('backup: unchanged probe_z not copied', backups and not os.path.exists(os.path.join(bdir, 'probe_z.nc')))
-        check('user file untouched', open(os.path.join(sub, 'set_tool_length.nc')).read() == '(user file)\n')
-        check('no temporary files left', not [f for f in os.listdir(sub) if f.endswith('.tsd_tmp')])
-        check('no warnings', 'WARNING' not in out, out)
+        check('install: every macro matches the repo', all(read(os.path.join(tmc, n)) == d for n, d in new.items()))
+        check('install: 16 written, 1 removed', '16 written, 0 already up to date, 1 removed' in out, out)
+        check('install: log names the edited file', 'replaced probe_x_edge.nc (other version)' in out, out)
+        check('install: log names original files', 'replaced probe_z.nc (original)' in out, out)
+        check('install: log names added files', 'added probe_result.nc' in out, out)
+        check('install: probe_z_for_position removed',
+              'removed probe_z_for_position.nc (original)' in out and
+              not os.path.exists(os.path.join(tmc, 'probe_z_for_position.nc')), out)
+        check('install: logs where ~/tmc points', 'is %s' % os.path.join(home, 'v2.10.0', 'subroutines') in out, out)
+        b = backups(home)
+        check('install: one backup folder in ~/gcode', len(b) == 1, b)
+        saved = snapshot(b[0]) if b else {}
+        check('install: backup holds every replaced or removed file as it was',
+              saved == {n: d for n, d in before.items() if n in original}, sorted(saved))
+        check('install: unrelated stock file untouched', read(os.path.join(tmc, 'other_stock.ngc')) == b'(stock file)\n')
+        check('install: user subroutine untouched', read(os.path.join(user, 'set_tool_length.nc')) == b'(user file)\n')
+        check('install: file mode kept', os.stat(os.path.join(tmc, 'probe_y_edge.nc')).st_mode & 0o777 == 0o664)
+        check('install: no temporary files left', not [f for f in os.listdir(tmc) if f.endswith('.tsd_tmp')])
+        check('install: no warnings', 'WARNING' not in out, out)
 
-        # second install: nothing to do, no new backup folder
-        code, out = run(home, {})
-        check('reinstall: all up to date', '0 written, 16 already up to date' in out and 'STATUS complete' in out, out)
-        check('reinstall: no new backup folder',
-              len([d for d in os.listdir(sub) if d.startswith('probing_macros_backup_')]) == 1)
+        code, out = run(python, INSTALL, home)
+        check('install again: nothing to do', '0 written, 16 already up to date, 0 removed' in out and
+              'STATUS complete' in out, out)
+        check('install again: no new backup folder', len(backups(home)) == 1)
 
-        # another folder earlier in SUBROUTINE_PATH holds a copy
-        shadow = os.path.join(home, 'tmc', 'subroutines')
-        os.makedirs(shadow)
-        open(os.path.join(shadow, 'probe_x_edge.nc'), 'w').write('(shipped copy)\n')
-        code, out = run(home, {'STUB_SUBROUTINE_PATH': shadow + ':' + sub})
+        installed = snapshot(tmc)
+        code, out = run(python, RESTORE, home)
+        check('restore: completes', code == 0 and 'STATUS complete' in out, out)
+        check('restore: every macro matches the original',
+              all(read(os.path.join(tmc, n)) == d for n, d in original.items()))
+        check('restore: 14 written, 3 removed', '14 written, 0 already up to date, 3 removed' in out, out)
+        check('restore: new support files removed',
+              not [n for n in ('probe_result.nc', 'probe_orient.nc', 'probe_apply_wear.nc')
+                   if os.path.exists(os.path.join(tmc, n))])
+        check('restore: log names the new version', 'replaced probe_x_edge.nc (new version' in out and
+              'removed probe_result.nc (new version' in out, out)
+        check('restore: probe_z_for_position added back', 'added probe_z_for_position.nc' in out, out)
+        b = backups(home)
+        check('restore: second backup folder, even in the same second', len(b) == 2, b)
+        saved = snapshot(b[1]) if len(b) == 2 else {}
+        check('restore: backup holds the new versions', saved == {n: d for n, d in installed.items() if n in new},
+              sorted(saved))
+        check('restore: unrelated stock file untouched', read(os.path.join(tmc, 'other_stock.ngc')) == b'(stock file)\n')
+        check('restore: no warnings', 'WARNING' not in out, out)
+
+        code, out = run(python, RESTORE, home)
+        check('restore again: nothing to do', '0 written, 14 already up to date, 0 removed' in out, out)
+        check('restore again: no new backup folder', len(backups(home)) == 2)
+
+        code, out = run(python, INSTALL, home)
+        check('install after restore: matches the repo', 'STATUS complete' in out and
+              all(read(os.path.join(tmc, n)) == d for n, d in new.items()), out)
+
+        # ---- which copy PathPilot will use
+        write(os.path.join(user, 'probe_x_edge.nc'), '(user copy)\n')
+        code, out = run(python, INSTALL, home)
         check('shadow: warns which copy PathPilot uses',
-              'WARNING: PathPilot will use %s' % os.path.join(shadow, 'probe_x_edge.nc') in out, out)
-        code, out = run(home, {'STUB_SUBROUTINE_PATH': sub + ':' + shadow})
+              'WARNING: PathPilot will use %s' % os.path.join(user, 'probe_x_edge.nc') in out, out)
+        code, out = run(python, RESTORE, home)
+        check('shadow: restore warns too', 'WARNING: PathPilot will use' in out, out)
+        code, out = run(python, INSTALL, home, {'STUB_SUBROUTINE_PATH': tmc + ':' + user})
         check('shadow later in path: no warning', 'WARNING' not in out, out)
-
-        # target not searched at all
-        code, out = run(home, {'STUB_SUBROUTINE_PATH': shadow})
+        code, out = run(python, INSTALL, home, {'STUB_SUBROUTINE_PATH': user})
         check('not in SUBROUTINE_PATH: warns', 'is not in SUBROUTINE_PATH' in out, out)
+        code, out = run(python, INSTALL, home, {'STUB_SUBROUTINE_PATH': '../tmc/subroutines'})
+        check('relative SUBROUTINE_PATH: resolves from the INI folder', 'WARNING' not in out, out)
 
-        # relative SUBROUTINE_PATH entries resolve from the INI folder
-        code, out = run(home, {'STUB_SUBROUTINE_PATH': '../gcode/subroutines'})
-        check('relative SUBROUTINE_PATH: resolves', 'WARNING' not in out, out)
-
-        # a third run against the final state still verifies cleanly
-        code, out = run(home, {})
-        check('final state verifies', 'Failed' not in out, out)
+        # ---- no ~/tmc/subroutines
+        bare = tempfile.mkdtemp()
+        homes.append(bare)
+        os.makedirs(os.path.join(bare, 'stubs'))
+        for name, text in STUBS.items():
+            write(os.path.join(bare, 'stubs', name), text)
+        os.makedirs(os.path.join(bare, 'gcode'))
+        code, out = run(python, INSTALL, bare)
+        check('missing ~/tmc/subroutines: refused', 'not found - nothing was changed' in out and
+              'STATUS None' in out and not os.path.exists(os.path.join(bare, 'tmc')), out)
     finally:
-        shutil.rmtree(home)
+        for h in homes:
+            shutil.rmtree(h)
 
+    print('TSD scripts run with %s' % python)
     width = max(len(n) for n, _, _ in results)
     fails = 0
     for name, ok, detail in results:
