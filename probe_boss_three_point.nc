@@ -7,6 +7,7 @@ o<probe_boss_three_point> sub
 (targets are computed from the start position so any positioning wcs can be used)
 (required: _first_vector, _second_vector, _third_vector, _diameter_to_probe, _diameter_to_position)
 (required: _first_position_to_probe - Z probing height, _measuring_wcs, _x_wcs_offset, _y_wcs_offset)
+(optional inputs and _result_ outputs: see probe_result)
 
 (PRINT, begin probe_boss_three_point)
 (PRINT, _first_vector is #<_first_vector>)
@@ -22,14 +23,12 @@ o<probe_boss_three_point> sub
 #<start_x> = #5420 (start X in the positioning wcs)
 #<start_y> = #5421 (start Y in the positioning wcs)
 #<start_z> = #5422 (start Z in the positioning wcs - used as the clearance height)
-#<start_wcs> = #5220 (positioning wcs)
 #<tip_r> = [[U_INCH[#5410]] / 2] (probe tip radius in program units)
 #<_radius_to_position> = [#<_diameter_to_position> / 2]
 #<_radius_to_probe> = [#<_diameter_to_probe> / 2]
 (PRINT, start_x is #<start_x>)
 (PRINT, start_y is #<start_y>)
 (PRINT, start_z is #<start_z>)
-(PRINT, start_wcs is #<start_wcs>)
 
 o100 if [#<_diameter_to_position> LE #<_diameter_to_probe>]
 	(DEBUG, diameter to position = #<_diameter_to_position>)
@@ -216,11 +215,9 @@ o330 if [#<min_sep> LT #<sep_limit>]
 	(DEBUG, probe_boss_three_point warning - vectors only #<min_sep> deg apart on a #<measured_diameter> boss - center may be inaccurate)
 o330 endif
 
-(move to center and set measuring wcs)
+(move to center, compare, report, and set the measuring wcs)
 G1 X#<_x_center> Y#<_y_center> F#<_probe_rough_feed_per_min>
-G54.1 P#<_measuring_wcs>
-G10 L20 P#5220 X#<_x_wcs_offset> Y#<_y_wcs_offset>
-G54.1 P#<start_wcs>
+o<probe_result> call [12] [1] [1] [0] [#<_x_center>] [#<_y_center>] [0] [#<measured_diameter>] [2]
 
 (PRINT, end probe_boss_three_point)
 o<probe_boss_three_point> endsub

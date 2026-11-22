@@ -245,8 +245,9 @@ class Interp:
         self.off = {k: list(v) for k, v in offsets.items()}
         self.active = active
         self.M = list(start)  # machine position of the probe center
-        self.params = {}
-        self.named = {k.lower(): v for k, v in (params or {}).items()}
+        self.params = {}                     # numbered globals (31+)
+        self.named = {k.lower(): v for k, v in (params or {}).items()}  # global named (_name)
+        self.frames = [{'named': {}, 'num': {}}]  # subroutine locals
         self.tip = tip_dia
         self.overtravel = overtravel
         self.absolute = True
@@ -258,6 +259,9 @@ class Interp:
         self.spindle = None
         self.named.setdefault('_probe_wireless', float(wireless))
         self.named.setdefault('_metric', 0.0)
+        self.named.setdefault('_epochtime', 1795376534.0)
+        self.logfile = []
+        self.log_open = False
         self.pause_answer = pause_answer
         self.paused = False
 
@@ -268,9 +272,12 @@ class Interp:
 
     def get_param(self, ref):
         if isinstance(ref, str):
-            if ref not in self.named:
+            table = self.named if ref.startswith('_') else self.frames[-1]['named']
+            if ref not in table:
                 raise GcodeError('named parameter #<%s> not defined' % ref)
-            return self.named[ref]
+            return table[ref]
+        if 1 <= ref <= 30:
+            return self.frames[-1]['num'].get(ref, 0.0)
         if ref in (5420, 5421, 5422):
             return self.wpos()[ref - 5420]
         if ref in (5061, 5062, 5063):
@@ -285,12 +292,16 @@ class Interp:
 
     def set_param(self, ref, v):
         if isinstance(ref, str):
-            self.named[ref] = v
+            (self.named if ref.startswith('_') else self.frames[-1]['named'])[ref] = v
+        elif 1 <= ref <= 30:
+            self.frames[-1]['num'][ref] = v
         else:
             self.params[ref] = v
 
     def exists(self, ref):
-        return ref in self.named if isinstance(ref, str) else True
+        if isinstance(ref, str):
+            return ref in (self.named if ref.startswith('_') else self.frames[-1]['named'])
+        return True
 
     # motion
     def _check_path(self, p0, p1, kind):
@@ -327,7 +338,23 @@ class Interp:
         self.trace.append((kind, tuple(round(c, 9) for c in self.M)))
 
     # execution
-    def run(self, path):
+    def run(self, path, args=()):
+        import os
+        self.dir = os.path.dirname(path)
+        if args or len(self.frames) > 1 or getattr(self, '_started', False):
+            self.frames.append({'named': {}, 'num': {k + 1: v for k, v in enumerate(args)}})
+            pushed = True
+        else:
+            pushed = False
+        self._started = True
+        try:
+            self._run_lines(path)
+        finally:
+            if pushed:
+                self.frames.pop()
+        return self
+
+    def _run_lines(self, path):
         lines = open(path, encoding='utf-8').read().split('\n')
         # skip-state stack for o-if
         stack = []
@@ -339,7 +366,6 @@ class Interp:
                 raise GcodeError('%s:%d: %s  [%s]' % (path, n, e, raw.strip()))
             if active == 'END':
                 break
-        return self
 
     def _comments(self, raw):
         code, comments, depth, buf = [], [], 0, []
@@ -368,7 +394,16 @@ class Interp:
         m = re.match(r'o(<[^>]+>|\d+)\s+(\w+)\s*(.*)$', code, re.I)
         if m:
             kw = m.group(2).lower()
-            if kw in ('sub', 'endsub', 'call', 'return'):
+            if kw == 'call':
+                if active:
+                    rd = Reader(m.group(3), self)
+                    args = []
+                    while rd.peek() == '[':
+                        args.append(rd.value())
+                    import os
+                    self.run(os.path.join(self.dir, m.group(1).strip('<>') + '.nc'), args)
+                return active
+            if kw in ('sub', 'endsub', 'return'):
                 if kw == 'endsub' and active:
                     return 'END'
                 if kw == 'return' and active:
@@ -394,11 +429,21 @@ class Interp:
         if not active:
             return active
         for c in comments:
-            cm = re.match(r'\s*(DEBUG|PRINT|ABORT|MSG|LOG|LOGAPPEND|LOGOPEN|LOGCLOSE)\s*,?(.*)$', c, re.I)
+            cm = re.match(r'\s*(DEBUG|PRINT|ABORT|MSG|LOGAPPEND|LOGOPEN|LOGCLOSE|LOG)\s*,?(.*)$', c, re.I)
             if cm:
                 kind = cm.group(1).upper()
                 text = self._subst(cm.group(2)) if kind in ('DEBUG', 'PRINT', 'ABORT', 'LOG') else cm.group(2)
                 self.messages.append((kind, text.strip()))
+                if kind in ('LOGOPEN', 'LOGAPPEND'):
+                    if kind == 'LOGOPEN':
+                        self.logfile = []
+                    self.log_open = True
+                elif kind == 'LOGCLOSE':
+                    self.log_open = False
+                elif kind == 'LOG':
+                    if not self.log_open:
+                        raise GcodeError('LOG with no open log file')
+                    self.logfile.append(text.strip())
                 if kind == 'ABORT':
                     raise GcodeError('ABORT: ' + text.strip())
         if not code:
@@ -468,10 +513,16 @@ class Interp:
                         self.trace.append(('G10', n, ax, round(self.off[n][k], 9)))
                 return
             elif g == 30:
-                self.trace.append(('G30', tuple(sorted(a for a in 'XYZ' if a in w))))
-                self.M[2] = 10.0  # model G30 Z as a high retract
-                if not [a for a in 'XYZ' if a in w]:
-                    self.M[0], self.M[1] = -5.0, -5.0
+                if not self.absolute:
+                    raise GcodeError('G30 in G91 is not allowed on PathPilot')
+                named = [a for a in 'XYZ' if a in w]
+                if named:  # intermediate point first (active wcs), then only those axes
+                    self.move([w.get(a, self.wpos()[k]) for k, a in enumerate('XYZ')], 'G30i')
+                g30 = (-5.0, -5.0, 10.0)  # modeled G30 machine position
+                for k, a in enumerate('XYZ'):
+                    if not named or a in named:
+                        self.M[k] = g30[k]
+                self.trace.append(('G30', tuple(named)))
                 return
             elif g not in (90, 91, 20, 21, 40, 49, 80, 17, 94):
                 raise GcodeError('unsupported G%g' % g)

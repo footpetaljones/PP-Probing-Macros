@@ -3,6 +3,7 @@ o<probe_y_boss> sub
 (the second side is probed from _second_x/y/z_position after retracting to _z_clearance_position)
 (required: _first_position_to_probe, _second_position_to_probe, _second_x_position, _second_y_position)
 (required: _second_z_position, _z_clearance_position, _measuring_wcs, _y_wcs_offset)
+(optional inputs and _result_ outputs: see probe_result)
 
 (PRINT, begin probe_y_boss)
 (PRINT, _first_position_to_probe is #<_first_position_to_probe>)
@@ -15,10 +16,8 @@ o<probe_y_boss> sub
 (PRINT, _y_wcs_offset is #<_y_wcs_offset>)
 
 #<_first_starting_position> = #5421 (start Y in the positioning wcs)
-#<start_wcs> = #5220 (positioning wcs)
 #<tip_r> = [[U_INCH[#5410]] / 2] (probe tip radius in program units)
 (PRINT, _first_starting_position is #<_first_starting_position>)
-(PRINT, start_wcs is #<start_wcs>)
 
 o100 if [#<_first_position_to_probe> GT #<_first_starting_position>]
 	#<dir> = 1 (probing toward +Y)
@@ -94,13 +93,15 @@ G90 (set absolute mode)
 
 G1 Z#<_z_clearance_position> F#<_probe_rapid_feed_per_min>
 
-(center and set measuring wcs)
+(center, size, and result)
 #<_y_center> = [[#<_first_y_touch> + #<_second_y_touch>] / 2]
 (PRINT, _y_center is #<_y_center>)
+#<width> = [ABS[#<_second_y_touch> - #<_first_y_touch>] - [2 * #<tip_r>]] (outside width)
+(PRINT, width is #<width>)
 G1 Y#<_y_center> F#<_probe_rapid_feed_per_min>
-G54.1 P#<_measuring_wcs>
-G10 L20 P#5220 Y#<_y_wcs_offset>
-G54.1 P#<start_wcs>
+
+(compare, report, and set the measuring wcs)
+o<probe_result> call [8] [0] [1] [0] [0] [#<_y_center>] [0] [#<width>] [2]
 
 (PRINT, end probe_y_boss)
 o<probe_y_boss> endsub

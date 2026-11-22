@@ -4,6 +4,7 @@ o<probe_circular_boss> sub
 (_first_position_to_probe is the Z probing height)
 (required: _diameter_to_position, _z_clearance_position, _first_position_to_probe)
 (required: _measuring_wcs, _x_wcs_offset, _y_wcs_offset)
+(optional inputs and _result_ outputs: see probe_result)
 
 (PRINT, begin probe_circular_boss, probing X first)
 (PRINT, _diameter_to_position is #<_diameter_to_position>)
@@ -17,12 +18,10 @@ G90 (set absolute mode)
 
 #<start_x> = #5420 (start X in the positioning wcs)
 #<start_y> = #5421 (start Y in the positioning wcs)
-#<start_wcs> = #5220 (positioning wcs)
 #<radius_to_position> = [#<_diameter_to_position> / 2]
 #<tip_r> = [[U_INCH[#5410]] / 2] (probe tip radius in program units)
 (PRINT, start_x is #<start_x>)
 (PRINT, start_y is #<start_y>)
-(PRINT, start_wcs is #<start_wcs>)
 
 (+X side - position)
 G1 X[#<start_x> + #<radius_to_position>] F#<_probe_rapid_feed_per_min>
@@ -86,13 +85,10 @@ G90 (set absolute mode)
 
 G1 Z#<_z_clearance_position> F#<_probe_rapid_feed_per_min>
 
-(center X and set measuring wcs X)
+(center X - Y is probed through the X center)
 #<_x_center> = [[#<_first_x_touch> + #<_second_x_touch>] / 2]
 (PRINT, _x_center is #<_x_center>)
 G1 X#<_x_center> F#<_probe_rapid_feed_per_min>
-G54.1 P#<_measuring_wcs>
-G10 L20 P#5220 X#<_x_wcs_offset>
-G54.1 P#<start_wcs>
 
 (PRINT, X complete, probing Y)
 
@@ -158,13 +154,15 @@ G90 (set absolute mode)
 
 G1 Z#<_z_clearance_position> F#<_probe_rapid_feed_per_min>
 
-(center Y and set measuring wcs Y)
+(center Y, diameter from the Y chord through the X center, and result)
 #<_y_center> = [[#<_first_y_touch> + #<_second_y_touch>] / 2]
 (PRINT, _y_center is #<_y_center>)
+#<diameter> = [ABS[#<_second_y_touch> - #<_first_y_touch>] - [2 * #<tip_r>]]
+(PRINT, diameter is #<diameter>)
 G1 Y#<_y_center> F#<_probe_rapid_feed_per_min>
-G54.1 P#<_measuring_wcs>
-G10 L20 P#5220 Y#<_y_wcs_offset>
-G54.1 P#<start_wcs>
+
+(compare, report, and set the measuring wcs)
+o<probe_result> call [10] [1] [1] [0] [#<_x_center>] [#<_y_center>] [0] [#<diameter>] [2]
 
 (PRINT, end probe_circular_boss)
 o<probe_circular_boss> endsub

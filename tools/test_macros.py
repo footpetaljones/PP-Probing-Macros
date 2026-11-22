@@ -8,6 +8,7 @@ Machine model: probe tip 0.100, positioning WCS 1 (G54) offset X10 Y5 Z-8,
 measuring WCS 2 (G55) starts at X3 Y3 Z3 so a wrong update is obvious.
 """
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -175,7 +176,8 @@ def report(it, err, expect):
         got = it.off[n]['XYZ'.index(ax)]
         worst = max(worst, abs(got - val))
         parts.append('%s%d %+.5f' % (ax, n, got - val))
-    flags = ['DEBUG: ' + m for k, m in it.messages if k == 'DEBUG']
+    flags = ['DEBUG: ' + m for k, m in it.messages
+             if k == 'DEBUG' and re.search(r'warning|OUT OF|OVER|not updated', m)]
     if it.collisions:
         flags.append('COLLISION %s' % (it.collisions[0],))
     if it.active != 1:
@@ -211,3 +213,152 @@ def main(argv):
 
 if __name__ == '__main__':
     main(sys.argv)
+
+
+# ---------------------------------------------------------------- result-step feature tests
+G55 = [3.0, 3.0, 3.0]
+
+
+def run_feature(macro, world, start, params, pause='resume'):
+    p = dict(FEEDS)
+    p.update(params)
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    it = Interp(world, {1: list(POS), 2: list(G55)}, 1, start, p, pause_answer=pause)
+    err = None
+    try:
+        it.run(os.path.join(root, macro + '.nc'))
+    except GcodeError as e:
+        err = str(e)
+    return it, err
+
+
+def bore(params, pause='resume', nominal_xy=(9.0, 3.0)):
+    base = {'_diameter_to_probe': 1.2, '_measuring_wcs': 2,
+            '_x_wcs_offset': nominal_xy[0], '_y_wcs_offset': nominal_xy[1]}
+    base.update(params)
+    return run_feature('probe_circular_bore', World([Cylinder(12.0, 6.0, 0.5, True)]), (12.03, 5.98, -8.5),
+                       base, pause)
+
+
+def feature_tests():
+    results = []
+
+    def check(name, cond, detail=''):
+        results.append((name, bool(cond), detail))
+
+    def kinds(it):
+        return [t[0] for t in it.trace]
+
+    # inspect only: nominal 9.001 / 2.998 in G55, bore actually at 9 / 3
+    it, err = bore({'_set_wcs': 0}, nominal_xy=(9.001, 2.998))
+    check('inspect only: no error', err is None, err)
+    check('inspect only: G55 unchanged', it.off[2][:2] == G55[:2], it.off[2])
+    check('inspect only: deviations', abs(it.named['_result_x_dev'] + 0.001) < 1e-9 and
+          abs(it.named['_result_y_dev'] - 0.002) < 1e-9, (it.named['_result_x_dev'], it.named['_result_y_dev']))
+    check('inspect only: diameter 1.000', abs(it.named['_result_size'] - 1.0) < 1e-9, it.named['_result_size'])
+    check('inspect only: _set_wcs reset to 1', it.named['_set_wcs'] == 1)
+    check('inspect only: ends in positioning wcs', it.active == 1)
+
+    tol = {'_nominal_size': 1.002, '_size_tolerance_plus': 0.001, '_size_tolerance_minus': 0.001}
+    # undersize bore = material left -> status 1, default action pause, resume -> wcs set
+    it, err = bore(dict(tol))
+    k = kinds(it)
+    check('rework: status 1', it.named.get('_result_status') == 1, it.named.get('_result_status'))
+    check('rework: G30 Z then G30 then M0, then G10',
+          'M0' in k and k.index('G30') < k.index('M0') < k.index('G10'), k[-8:])
+    check('rework: Z retract first', [t for t in it.trace if t[0] == 'G30'][0][1] == ('Z',))
+    check('rework: wcs set after resume', abs(it.off[2][0] - 3.0) < 1e-9 and abs(it.off[2][1] - 3.0) < 1e-9,
+          it.off[2])
+    check('rework: per-feature inputs cleared', it.named['_nominal_size'] == 0 and
+          it.named['_size_tolerance_plus'] == 0)
+
+    # operator stops at the M0 -> nothing updated (G55 target moved so an update would show)
+    it, err = bore(dict(tol), pause='abort', nominal_xy=(0.0, 0.0))
+    check('stop at M0: aborted', err is not None and 'M0' in err, err)
+    check('stop at M0: G55 unchanged', it.off[2] == G55, it.off[2])
+
+    # tolerance action 2 -> retract, log, abort; no update
+    it, err = bore(dict(tol, _tolerance_action=2, _log_results=1), nominal_xy=(0.0, 0.0))
+    check('abort action: aborted', err is not None and 'ABORT' in err, err)
+    check('abort action: G55 unchanged', it.off[2] == G55, it.off[2])
+    check('abort action: logged with wcs_updated 0', it.logfile and it.logfile[-1].split(',')[5] == '0.000000',
+          it.logfile[-1:] if it.logfile else None)
+    check('abort action: no M0', 'M0' not in kinds(it))
+
+    # flag only -> no stop, wcs set, status kept for the caller
+    it, err = bore(dict(tol, _tolerance_action=0), nominal_xy=(0.0, 0.0))
+    check('flag only: no error, no M0', err is None and 'M0' not in kinds(it), err)
+    check('flag only: status 1 and wcs set', it.named['_result_status'] == 1 and
+          abs(it.off[2][0] - 12.0) < 1e-9, (it.named['_result_status'], it.off[2]))
+
+    # oversize bore = material missing -> scrap
+    it, err = bore({'_nominal_size': 0.998, '_size_tolerance_plus': 0.001, '_size_tolerance_minus': 0.001,
+                    '_tolerance_action': 0})
+    check('scrap: status 2', it.named['_result_status'] == 2, it.named['_result_status'])
+
+    # boss oversize = material left -> rework
+    it, err = run_feature('probe_circular_boss', World([Cylinder(12.0, 6.0, 0.5, False, ztop=-8.0)]),
+                          (12.02, 6.01, -7.5),
+                          {'_diameter_to_position': 1.5, '_first_position_to_probe': w(0, 0, -8.5)[2],
+                           '_z_clearance_position': w(0, 0, -7.5)[2], '_measuring_wcs': 2,
+                           '_x_wcs_offset': 9.0, '_y_wcs_offset': 3.0, '_nominal_size': 0.998,
+                           '_size_tolerance_plus': 0.001, '_size_tolerance_minus': 0.001,
+                           '_tolerance_action': 0})
+    check('boss oversize: rework status 1', it.named.get('_result_status') == 1,
+          (err, it.named.get('_result_status')))
+    check('boss: diameter 1.000', abs(it.named['_result_size'] - 1.0) < 1e-9, it.named['_result_size'])
+
+    # update minimum: edge 0.0004 from nominal -> not updated; 0.002 -> updated
+    edge = World([Wall('X', 12.0, +1)])
+    for nominal, expect_update in ((9.0004, False), (9.002, True)):
+        it, err = run_feature('probe_x_edge', edge, (11.5, 6, -8.5),
+                              {'_first_position_to_probe': w(12.5, 0, 0)[0], '_measuring_wcs': 2,
+                               '_x_wcs_offset': nominal, '_update_minimum': 0.001})
+        updated = abs(it.off[2][0] - 3.0) > 1e-9
+        check('update minimum %.4f: updated=%s' % (nominal - 9.0, expect_update), updated == expect_update,
+              (err, it.off[2][0]))
+        check('update minimum: _update_minimum cleared', it.named['_update_minimum'] == 0)
+
+    # update maximum: 0.5 away with max 0.1 -> status 4, pause, never updated
+    it, err = run_feature('probe_x_edge', edge, (11.5, 6, -8.5),
+                          {'_first_position_to_probe': w(12.5, 0, 0)[0], '_measuring_wcs': 2,
+                           '_x_wcs_offset': 9.5, '_update_maximum': 0.1})
+    check('update maximum: status 4', it.named['_result_status'] == 4, it.named['_result_status'])
+    check('update maximum: paused', 'M0' in kinds(it))
+    check('update maximum: not updated after resume', it.off[2] == G55, it.off[2])
+
+    # position tolerance on a three-point bore, flag only
+    it, err = run_feature('probe_bore_three_point', World([Cylinder(12.0, 6.0, 0.5, True)]), (12.03, 5.98, -8.5),
+                          {'_first_vector': 0, '_second_vector': 120, '_third_vector': 240,
+                           '_diameter_to_probe': 1.2, '_measuring_wcs': 2, '_x_wcs_offset': 9.002,
+                           '_y_wcs_offset': 3.0, '_position_tolerance': 0.0005, '_tolerance_action': 0})
+    check('position tolerance: status 3', it.named.get('_result_status') == 3, (err, it.named.get('_result_status')))
+    check('position tolerance: true position 0.004', abs(it.named['_result_tp_dev'] - 0.004) < 1e-9,
+          it.named['_result_tp_dev'])
+
+    # logging: new file with header, then append
+    it, err = bore({'_log_results': 2, '_feature_number': 7})
+    check('log 2: header + 1 row', len(it.logfile) == 2 and it.logfile[0].startswith('epoch,'), it.logfile)
+    check('log 2: 19 columns', len(it.logfile[1].split(',')) == 19 == len(it.logfile[0].split(',')),
+          it.logfile[1] if len(it.logfile) > 1 else None)
+    check('log 2: switches to append', it.named['_log_results'] == 1)
+    check('log row: macro name and feature', ',probe_circular_bore,' in it.logfile[1] and
+          it.logfile[1].split(',')[1] == '7.000000', it.logfile[1])
+
+    # z with tolerance-free inspect: z dev reported
+    it, err = run_feature('probe_z', World([Floor(-9.0)]), (11, 6, -8.6),
+                          {'_first_position_to_probe': w(0, 0, -9.5)[2], '_measuring_wcs': 2,
+                           '_z_wcs_offset': -12.0, '_set_wcs': 0})
+    check('z inspect: dev 0', abs(it.named['_result_z_dev']) < 1e-9, (err, it.named.get('_result_z_dev')))
+
+    width = max(len(n) for n, _, _ in results)
+    fails = 0
+    for name, ok, detail in results:
+        fails += not ok
+        print('%-*s  %s%s' % (width, name, 'PASS' if ok else 'FAIL', '' if ok else '  ' + str(detail)))
+    print('%d checks, %d failed' % (len(results), fails))
+    return fails
+
+
+if __name__ == '__main__' and '--features' in sys.argv:
+    sys.exit(1 if feature_tests() else 0)

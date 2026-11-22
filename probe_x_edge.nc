@@ -2,6 +2,7 @@ o<probe_x_edge> sub
 (probe_x_edge: probe one X edge and set the X origin of the measuring wcs)
 (the probe moves from the start position toward _first_position_to_probe)
 (required: _first_position_to_probe, _measuring_wcs, _x_wcs_offset)
+(optional inputs and _result_ outputs: see probe_result)
 
 (PRINT, begin probe_x_edge)
 (PRINT, _first_position_to_probe is #<_first_position_to_probe>)
@@ -36,16 +37,18 @@ F#<_probe_fine_feed_per_min>
 G38.2 X#<_first_position_to_probe>
 (PRINT, slow touch successful)
 
-(set measuring wcs - the probe center was one tip radius short of the edge at the trip point)
-#<overtravel> = [#5420 - #5061] (stopped position minus trip point, positioning wcs)
-G54.1 P#<_measuring_wcs>
-G10 L20 P#5220 X[#<_x_wcs_offset> - [#<tip_r> * #<dir>] + #<overtravel>]
+#<touch_x> = #5061 (trip point)
+#<edge_x> = [#<touch_x> + [#<tip_r> * #<dir>]] (the edge is one tip radius past the probe center)
+(PRINT, edge_x is #<edge_x>)
 
 (retract)
 G91 (set incremental mode)
 F#<_probe_rough_feed_per_min>
 G38.6 X[#<tip_r> * #<dir> * -1]
 G90 (set absolute mode)
+
+(compare, report, and set the measuring wcs)
+o<probe_result> call [2] [1] [0] [0] [#<edge_x>] [0] [0] [0] [0]
 
 (PRINT, end probe_x_edge)
 o<probe_x_edge> endsub
