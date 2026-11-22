@@ -1,5 +1,8 @@
 o<probe_y_pocket> sub
-(Probe in y positive or negative direction and set 0)
+(probe_y_pocket: probe two opposing Y walls inside a pocket and set the Y origin of the measuring wcs to the center)
+(the second wall is probed from _second_x/y/z_position after retracting to _z_clearance_position)
+(required: _first_position_to_probe, _second_position_to_probe, _second_x_position, _second_y_position)
+(required: _second_z_position, _z_clearance_position, _measuring_wcs, _y_wcs_offset)
 
 (PRINT, begin probe_y_pocket)
 (PRINT, _first_position_to_probe is #<_first_position_to_probe>)
@@ -11,109 +14,93 @@ o<probe_y_pocket> sub
 (PRINT, _measuring_wcs is #<_measuring_wcs>)
 (PRINT, _y_wcs_offset is #<_y_wcs_offset>)
 
-#<_first_starting_position> = #5421
-
+#<_first_starting_position> = #5421 (start Y in the positioning wcs)
+#<start_wcs> = #5220 (positioning wcs)
+#<tip_r> = [[U_INCH[#5410]] / 2] (probe tip radius in program units)
 (PRINT, _first_starting_position is #<_first_starting_position>)
+(PRINT, start_wcs is #<start_wcs>)
 
-G90 (set to absolute mode)
-
-#1 = #5420 (current relative X position)
-#2 = #5421 (current relative Y position)
-#3 = #5422 (current relative Z position)
-#4 = #5220 (current active wcs)
-(PRINT, # 1 is #1)
-(PRINT, # 2 is #2)
-(PRINT, # 3 is #3)
-(PRINT, # 4 is #4)
-
-(fast probe)
-F#<_probe_rough_feed_per_min>
-G38.2 Y#<_first_position_to_probe>
-(PRINT, first fast y touch successful)
-
-(first retract)
-G91 (set to incremental mode)
-F#<_probe_rough_feed_per_min>
 o100 if [#<_first_position_to_probe> GT #<_first_starting_position>]
-	G38.6 Y[[[U_INCH[#5410]]/2]*-1]
-	o100 else
-	G38.6 Y[[U_INCH[#5410]]/2]
+	#<dir> = 1 (probing toward +Y)
+o100 else
+	#<dir> = -1 (probing toward -Y)
 o100 endif
 
-G90 (set to absolute mode)
+G90 (set absolute mode)
 
-(slow probe)
+(first wall - fast touch)
+F#<_probe_rough_feed_per_min>
+G38.2 Y#<_first_position_to_probe>
+(PRINT, first wall fast touch successful)
+
+(back off)
+G91 (set incremental mode)
+F#<_probe_rough_feed_per_min>
+G38.6 Y[#<tip_r> * #<dir> * -1]
+G90 (set absolute mode)
+
+(slow touch)
 F#<_probe_fine_feed_per_min>
 G38.2 Y#<_first_position_to_probe>
-(PRINT, first slow y touch successful)
+(PRINT, first wall slow touch successful)
 
 #<_first_y_touch> = #5421
 (PRINT, _first_y_touch is #<_first_y_touch>)
 
-(second retract)
-G91 (set to incremental mode)
+(retract)
+G91 (set incremental mode)
 F#<_probe_rough_feed_per_min>
-o110 if [#<_first_position_to_probe> GT #<_first_starting_position>]
-	G38.6 Y[[[U_INCH[#5410]]/2]*-1]
-	o110 else
-	G38.6 Y[[U_INCH[#5410]]/2]
-o110 endif
+G38.6 Y[#<tip_r> * #<dir> * -1]
+G90 (set absolute mode)
 
-G90 (set to absolute mode)
-
-(second Y position)
+(move to the second wall start)
 G1 Z#<_z_clearance_position> F#<_probe_rapid_feed_per_min>
 G1 X#<_second_x_position> Y#<_second_y_position> F#<_probe_rapid_feed_per_min>
 G1 Z#<_second_z_position> F#<_probe_rough_feed_per_min>
 
-#<_second_starting_position> = #5421
-
+#<_second_starting_position> = #5421 (second start Y in the positioning wcs)
 (PRINT, _second_starting_position is #<_second_starting_position>)
 
-(fast probe)
-F#<_probe_rough_feed_per_min>
-G38.2 Y#<_second_position_to_probe>
-(PRINT, second fast y touch successful)
-
-(first retract)
-G91 (set to incremental mode)
-F#<_probe_rough_feed_per_min>
 o200 if [#<_second_position_to_probe> GT #<_second_starting_position>]
-	G38.6 Y[[[U_INCH[#5410]]/2]*-1]
-	o200 else
-	G38.6 Y[[U_INCH[#5410]]/2]
+	#<dir> = 1 (probing toward +Y)
+o200 else
+	#<dir> = -1 (probing toward -Y)
 o200 endif
 
-G90 (set to absolute mode)
+(second wall - fast touch)
+F#<_probe_rough_feed_per_min>
+G38.2 Y#<_second_position_to_probe>
+(PRINT, second wall fast touch successful)
 
-(slow probe)
+(back off)
+G91 (set incremental mode)
+F#<_probe_rough_feed_per_min>
+G38.6 Y[#<tip_r> * #<dir> * -1]
+G90 (set absolute mode)
+
+(slow touch)
 F#<_probe_fine_feed_per_min>
 G38.2 Y#<_second_position_to_probe>
-(PRINT, second slow y touch successful)
+(PRINT, second wall slow touch successful)
 
 #<_second_y_touch> = #5421
 (PRINT, _second_y_touch is #<_second_y_touch>)
 
-(Y finished retract)
-G91 (set to incremental mode)
+(retract)
+G91 (set incremental mode)
 F#<_probe_rough_feed_per_min>
-o210 if [#<_second_position_to_probe> GT #<_second_starting_position>]
-	G38.6 Y[[[U_INCH[#5410]]/2]*-1]
-	o210 else
-	G38.6 Y[[U_INCH[#5410]]/2]
-o210 endif
-
-G90 (set to absolute mode)
+G38.6 Y[#<tip_r> * #<dir> * -1]
+G90 (set absolute mode)
 
 G1 Z#<_z_clearance_position> F#<_probe_rough_feed_per_min>
 
-(PRINT, centering y)
+(center and set measuring wcs)
 #<_y_center> = [[#<_first_y_touch> + #<_second_y_touch>] / 2]
 (PRINT, _y_center is #<_y_center>)
 G1 Y#<_y_center> F#<_probe_rough_feed_per_min>
 G54.1 P#<_measuring_wcs>
 G10 L20 P#5220 Y#<_y_wcs_offset>
-G54.1 P#4
+G54.1 P#<start_wcs>
 
-(PRINT, end probe_y_boss)
+(PRINT, end probe_y_pocket)
 o<probe_y_pocket> endsub
