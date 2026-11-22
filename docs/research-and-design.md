@@ -124,58 +124,55 @@ nominal (only valid when the two are the same), and no tolerance/tool feedback l
    - `o<probe_evaluate> call [...]` — deviations, tolerance status, action, tool update, outputs, DEBUG, log.
 5. Every move absolute except where an incremental retract is clearer; mode restored to G90 on exit.
 
-### 4.2 Optional inputs (all default to current behavior)
+### 4.2 Optional inputs (implemented in `probe_result.nc`; 0 = off)
 
-| Parameter | Default | Meaning |
-|---|---|---|
-| `#<_set_wcs>` | 1 | 0 = inspect only (measure, evaluate, don't touch the WCS). |
-| `#<_orient_probe>` | −1 | −1 auto (orient only if machine has a wireless probe), 0 never, 1 force (still refused on a wired probe). |
-| `#<_display_results>` | 1 | DEBUG summary to the Status tab. |
-| `#<_log_results>` | 0 | Append one CSV line per feature to the results file. |
-| `#<_feature_number>` | 0 | Integer tag written to the log/DEBUG. |
-| `#<_nominal_size>` | — | Expected width/diameter (size features). Enables size checks. |
-| `#<_size_tolerance_plus>` / `#<_size_tolerance_minus>` | — | Size tolerance band (positive magnitudes). |
-| `#<_position_tolerance>` | — | ± per-axis position tolerance in the measuring WCS. |
-| `#<_upper_limit>` | — | Gross-error limit (size or position). Exceeded → no WCS set, no tool update, status 3. |
-| `#<_tolerance_action>` | 1 | Out of tolerance: 0 flag only, 1 pause (DEBUG, G90, retract to G30, `M0 (feature out of tolerance)`; cycle start accepts), 2 abort. |
-| `#<_update_tool>` | 0 | Tool number to correct (cut-measure-cut). 0 = off. |
-| `#<_update_feedback>` | 1.0 | Fraction of the error applied (Renishaw F). |
-| `#<_update_null_band>` | 0 | No tool update when \|error\| is inside this band (Renishaw V). |
+| Parameter | Default | Meaning | Cleared after each call |
+|---|---|---|---|
+| `#<_set_wcs>` | 1 | 0 = inspect only (measure, evaluate, don't touch the WCS). | yes (back to 1) |
+| `#<_display_results>` | 1 | DEBUG summary on the Status tab. | no |
+| `#<_log_results>` | 0 | 1 = append a CSV row; 2 = start a new file with a header row (then switches to 1). | no |
+| `#<_feature_number>` | 0 | Tag shown in DEBUG and written to the log. | yes |
+| `#<_nominal_size>` | 0 | Expected width/diameter (size features). Enables size checks. | yes |
+| `#<_size_tolerance_plus>` / `#<_size_tolerance_minus>` | 0 | Size tolerance band (magnitudes). | yes |
+| `#<_position_tolerance>` | 0 | ± per-axis position tolerance in the measuring WCS. | yes |
+| `#<_update_minimum>` | 0 | Axes whose difference is under this are not updated. | yes |
+| `#<_update_maximum>` | 0 | Any difference (position or size) over this: no update, status 4. | yes |
+| `#<_tolerance_action>` | 1 | Status > 0: 0 flag only; 1 `G90`, `G30 Z#5422`, `G30`, `M0 (feature out of tolerance)`, cycle start accepts; 2 same retract, log, then ABORT. | no |
+| `#<_orient_offset>` | 0 | (orientation step, not built yet) spindle angle K for tracking. | — |
 
-Nominal position for the tolerance check reuses `_x/_y/_z_wcs_offset`: the measured feature position
-in the **measuring** WCS before any update is compared to it. In inspect mode that is the inspection
-deviation; in set mode it is the WCS shift, so `_position_tolerance` / `_upper_limit` work as a
-"wrong part / wrong vise" sanity check.
+The nominal position is the existing `_x/_y/_z_wcs_offset`: the measured feature position in the measuring WCS
+before any update is compared with it. In inspect mode that is the inspection deviation; in set mode it is
+the WCS shift, so `_position_tolerance` and `_update_minimum/_maximum` act on the shift.
 
-### 4.3 Outputs (globals, readable by the calling program after the call)
+### 4.3 Outputs (globals, readable after the call)
 
 | Parameter | Meaning |
 |---|---|
 | `#<_result_x>` `#<_result_y>` `#<_result_z>` | Feature position in the measuring WCS before any update. |
-| `#<_result_size>` | Measured width/diameter (size features). |
-| `#<_result_x_dev>` `_y_dev` `_z_dev` `#<_result_size_dev>` | Measured − nominal. |
+| `#<_result_x_dev>` `_y_dev` `_z_dev` | Measured − nominal. |
+| `#<_result_size>` / `#<_result_size_dev>` | Width or diameter / measured − nominal size (0 if no nominal). |
 | `#<_result_tp_dev>` | True-position deviation, 2·√(dx²+dy²). |
-| `#<_result_status>` | 0 good, 1 rework (metal on), 2 scrap (metal off), 3 upper limit exceeded. |
-| `#<_result_wcs_set>` | 1 if the WCS was updated. |
-| `#<_result_tool_delta>` | Diameter (XY) or length (Z) correction computed for `_update_tool`. |
+| `#<_result_status>` | 0 ok, 1 size out – material left (rework), 2 size out – material missing (scrap), 3 position out, 4 over update maximum. Priority 4 > 2 > 3 > 1. |
+| `#<_result_size_status>` / `#<_result_position_status>` | Individual flags (0/1/2 and 0/1). |
+| `#<_result_wcs_set>` | 1 if any axis of the WCS was updated. |
 
 Existing outputs (`_x_center`, `_y_center`, `_first_x_touch`, …) stay, in positioning-WCS coordinates.
+Sizes: pocket/boss width from the two touches ± tip diameter; circular bore/boss diameter from the Y chord
+(probed through the X center); three-point diameter from the circumcircle.
 
-### 4.4 Evaluation order (per feature)
-1. Probe; touches from `#5061–#5063`.
-2. Compute feature position (positioning WCS) and size.
-3. Move to center (center features, as today).
-4. Switch to the measuring WCS; read the current position → measured position in the measuring WCS; deviations.
-5. Upper limit exceeded → status 3, skip 6–7, log/display, then **abort** (or flag only if `_tol_action` = 0).
-6. If `_set_wcs` = 1 → `G10 L20` exactly as today (trip-point corrected).
-7. Size status: in tolerance → 0. Out: metal on → 1, metal off → 2.
-   (Internal features: undersize = metal on. External: oversize = metal on.)
-8. Tool update if `_update_tool` > 0 and \|error\| > null band:
-   internal feature `ΔD = +error·F`, external `ΔD = −error·F`, face `ΔL = −error·F`.
-9. Outputs, DEBUG, log line.
-10. Out of tolerance → `_tolerance_action` (flag / pause / abort). Pause and abort happen **before** the
-    WCS set / wear update; those run only after Cycle Start (queue buster after the M0).
-11. Restore positioning WCS, clear consumed optional inputs.
+### 4.4 Order inside `probe_result`
+1. Read optional inputs.
+2. Switch to the measuring WCS just long enough to read the translation to it (no motion), switch back.
+3. Feature position in the measuring WCS, deviations, size deviation, statuses.
+4. DEBUG summary (sent bottom-up because the Status tab lists newest first).
+5. Status > 0 and action 1: retract and `M0`; `M66 P0 L0` so nothing below runs before Cycle Start.
+   Action 2: retract, skip the update, abort after logging.
+6. WCS update unless inspect-only, over maximum or aborting; per axis, skipped under the minimum.
+   `G10 L20 P#<_measuring_wcs> X[#5420 + translation − dev]` works from any position, including after the G30 retract.
+7. DEBUG line with the WCS outcome; CSV row; clear per-feature inputs; ABORT if action 2.
+
+CSV columns: `epoch,feature,macro,wcs,set_wcs,wcs_updated,status,x_nominal,x,x_dev,y_nominal,y,y_dev,z_nominal,z,z_dev,size_nominal,size,size_dev`
+(unused axes are empty; values print with 6 decimals; epoch from `#<_epochtime>`).
 
 ### 4.5 Cut-measure-cut flow
 Example calling program (finish bore with semi-finish allowance):
@@ -275,13 +272,17 @@ across restarts. A scratch WCS leaves itself active (#5220 is saved) and overwri
 Computing targets from the start position changes nothing until the final `G10 L20`; that is what
 the fix does (the Audacity repo does the same — no polar words anywhere).
 
-### Wear offsets (PathPilot 2.14 mill, from the backup)
+### Wear offsets (PathPilot 2.14 mill)
 - Stored in the tool table `mill_data/tool2.tbl`, not in `emc.var` (which only holds #5161–5390, #5650–5653):
   length wear in the **W** field, diameter wear in the **I** field (`T1 … Z+1.0 W+0.001 I+0.0002`).
-- Sim test (G20 and G21): #5403, #5409, #5410, #5411 return the same numbers in both modes → always inches;
-  wrap with `U_INCH[]`. `G10 L1 P1 I0.0005` + `G43` updated #5411 to 0.0005.
-- Open: whether `G10 L1 W/I` values are converted in G21; whether #5409 is length wear
-  (it read .0020 before the write in the test).
+- `machine_tests/wear_offset_units.nc` on the 1500MX sim (2026-11-22):
+  - #5403 length, #5409 **length wear**, #5410 diameter, #5411 **diameter wear** (loaded tool).
+  - Reads are always inches (same numbers in G20 and G21) → wrap with `U_INCH[]`.
+  - `G10 L1 P<n> W<> I<>` writes are converted from program units (G21 0.1016/0.1524 → .0040/.0060 in);
+    the Offsets tab matched during the M0.
+  - Z position changed by exactly the length wear after `G43` → length wear is applied additively by G43.
+  - The DEBUG timestamps cannot show whether the interpreter reads past M0 (DEBUG is displayed when executed),
+    so the result step keeps an `M66 P0 L0` queue buster after the M0.
 
 ### Orientation
 `M19 R0` then `M19 R90` turned the spindle a quarter turn CW viewed from above: spindle angle increases CW,
