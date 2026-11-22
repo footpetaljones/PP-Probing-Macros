@@ -99,6 +99,36 @@ def scenarios():
                    '_first_position_to_probe': w(0, 0, -8.5)[2],
                    '_measuring_wcs': 2, '_x_wcs_offset': 0.0, '_y_wcs_offset': 0.0},
                   {(2, 'X'): 12.0, (2, 'Y'): 6.0}))
+    # positioning-WCS zero at the feature center: the only case the polar version handled
+    s.append(('bore_three_point zero at center', 'probe_bore_three_point',
+              World([Cylinder(10.0, 5.0, 0.5, True)]), (10.03, 4.98, -8.5),
+              {'_first_vector': 0, '_second_vector': 120, '_third_vector': 240,
+               '_diameter_to_probe': 1.2, '_measuring_wcs': 2, '_x_wcs_offset': 0.0, '_y_wcs_offset': 0.0},
+              {(2, 'X'): 10.0, (2, 'Y'): 5.0}))
+    s.append(('boss_three_point zero at center', 'probe_boss_three_point',
+              World([Cylinder(10.0, 5.0, 0.5, False, ztop=-8.0)]), (10.02, 5.01, -7.5),
+              {'_first_vector': 0, '_second_vector': 120, '_third_vector': 240,
+               '_diameter_to_probe': 0.8, '_diameter_to_position': 1.6,
+               '_first_position_to_probe': w(0, 0, -8.5)[2],
+               '_measuring_wcs': 2, '_x_wcs_offset': 0.0, '_y_wcs_offset': 0.0},
+              {(2, 'X'): 10.0, (2, 'Y'): 5.0}))
+    # start well off center, measuring WCS = positioning WCS, non-zero target
+    s.append(('bore_three_point off-center start', 'probe_bore_three_point',
+              World([Cylinder(12.0, 6.0, 0.5, True)]), (12.15, 5.9, -8.5),
+              {'_first_vector': 45, '_second_vector': 170, '_third_vector': 290,
+               '_diameter_to_probe': 1.4, '_measuring_wcs': 1, '_x_wcs_offset': 2.5, '_y_wcs_offset': -1.0},
+              {(1, 'X'): 9.5, (1, 'Y'): 7.0}))
+    # vectors too close together -> clean abort
+    s.append(('bore_three_point 10 deg apart', 'probe_bore_three_point',
+              World([Cylinder(12.0, 6.0, 0.5, True)]), (12.03, 5.98, -8.5),
+              {'_first_vector': 0, '_second_vector': 10, '_third_vector': 200,
+               '_diameter_to_probe': 1.2, '_measuring_wcs': 2, '_x_wcs_offset': 0.0, '_y_wcs_offset': 0.0},
+              {(2, 'X'): 12.0, (2, 'Y'): 6.0}))
+    s.append(('bore_three_point 350/5/180', 'probe_bore_three_point',
+              World([Cylinder(12.0, 6.0, 0.5, True)]), (12.03, 5.98, -8.5),
+              {'_first_vector': 350, '_second_vector': 5, '_third_vector': 180,
+               '_diameter_to_probe': 1.2, '_measuring_wcs': 2, '_x_wcs_offset': 0.0, '_y_wcs_offset': 0.0},
+              {(2, 'X'): 12.0, (2, 'Y'): 6.0}))
     return s
 
 
