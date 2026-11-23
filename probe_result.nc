@@ -55,14 +55,18 @@ o107 endif
 o108 if [EXISTS[#<_position_tolerance>]]
 	#<position_tolerance> = ABS[#<_position_tolerance>]
 o108 endif
-#<update_minimum> = 0
-o109 if [EXISTS[#<_update_minimum>]]
-	#<update_minimum> = ABS[#<_update_minimum>]
+#<update_wcs_minimum> = 0
+o109 if [EXISTS[#<_update_wcs_minimum>]]
+	#<update_wcs_minimum> = ABS[#<_update_wcs_minimum>]
 o109 endif
-#<update_maximum> = 0
-o110 if [EXISTS[#<_update_maximum>]]
-	#<update_maximum> = ABS[#<_update_maximum>]
+#<update_wcs_maximum> = 0
+o110 if [EXISTS[#<_update_wcs_maximum>]]
+	#<update_wcs_maximum> = ABS[#<_update_wcs_maximum>]
 o110 endif
+#<update_tool_wear_minimum> = 0
+o115 if [EXISTS[#<_update_tool_wear_minimum>]]
+	#<update_tool_wear_minimum> = ABS[#<_update_tool_wear_minimum>]
+o115 endif
 #<update_tool> = 0
 o111 if [EXISTS[#<_update_tool>]]
 	#<update_tool> = #<_update_tool>
@@ -139,9 +143,10 @@ o140 endif
 o143 if [[#<position_tolerance> GT 0] AND [#<_result_tp_dev> GT #<position_tolerance>]]
 	#<_result_position_status> = 1
 o143 endif
+(the wcs maximum only applies when the wcs is being set)
 #<over_maximum> = 0
-o144 if [#<update_maximum> GT 0]
-	o145 if [[#<largest_position_dev> GT #<update_maximum>] OR [ABS[#<_result_size_dev>] GT #<update_maximum>]]
+o144 if [[#<update_wcs_maximum> GT 0] AND [#<set_wcs> EQ 1]]
+	o145 if [[#<largest_position_dev> GT #<update_wcs_maximum>] OR [ABS[#<_result_size_dev>] GT #<update_wcs_maximum>]]
 		#<over_maximum> = 1
 	o145 endif
 o144 endif
@@ -193,7 +198,7 @@ o200 if [#<display> EQ 1]
 		(DEBUG,   POSITION OUT OF TOLERANCE - true position over #<position_tolerance>)
 	o209 endif
 	o210 if [#<_result_status> EQ 4]
-		(DEBUG,   DIFFERENCE OVER UPDATE MAXIMUM #<update_maximum>)
+		(DEBUG,   DIFFERENCE OVER THE WCS UPDATE MAXIMUM #<update_wcs_maximum>)
 	o210 endif
 	o211 if [#<macro> EQ 1]
 		(DEBUG, probe_z  feature #<feature_number>  G54.1 P#<_measuring_wcs>)
@@ -250,21 +255,31 @@ o300 if [[#<_result_status> GT 0] AND [#<action> GT 0]]
 	o301 endif
 o300 endif
 
-(update the measuring wcs - axes inside the update minimum are left unchanged)
+(update the measuring wcs - axes inside the wcs update minimum are left unchanged)
 #<wcs_updated> = 0
+#<wcs_held> = 0
 o400 if [[#<set_wcs> EQ 1] AND [#<over_maximum> EQ 0] AND [#<abort_after_log> EQ 0]]
-	o401 if [#<has_x> AND [ABS[#<_result_x_dev>] GE #<update_minimum>]]
+	o401 if [#<has_x> AND [ABS[#<_result_x_dev>] GE #<update_wcs_minimum>]]
 		G10 L20 P#<_measuring_wcs> X[#5420 + #<to_measuring_x> - #<_result_x_dev>]
 		#<wcs_updated> = 1
 	o401 endif
-	o402 if [#<has_y> AND [ABS[#<_result_y_dev>] GE #<update_minimum>]]
+	o402 if [#<has_y> AND [ABS[#<_result_y_dev>] GE #<update_wcs_minimum>]]
 		G10 L20 P#<_measuring_wcs> Y[#5421 + #<to_measuring_y> - #<_result_y_dev>]
 		#<wcs_updated> = 1
 	o402 endif
-	o403 if [#<has_z> AND [ABS[#<_result_z_dev>] GE #<update_minimum>]]
+	o403 if [#<has_z> AND [ABS[#<_result_z_dev>] GE #<update_wcs_minimum>]]
 		G10 L20 P#<_measuring_wcs> Z[#5422 + #<to_measuring_z> - #<_result_z_dev>]
 		#<wcs_updated> = 1
 	o403 endif
+	o404 if [#<has_x> AND [ABS[#<_result_x_dev>] LT #<update_wcs_minimum>]]
+		#<wcs_held> = 1
+	o404 endif
+	o405 if [#<has_y> AND [ABS[#<_result_y_dev>] LT #<update_wcs_minimum>]]
+		#<wcs_held> = 1
+	o405 endif
+	o406 if [#<has_z> AND [ABS[#<_result_z_dev>] LT #<update_wcs_minimum>]]
+		#<wcs_held> = 1
+	o406 endif
 o400 endif
 #<_result_wcs_set> = #<wcs_updated>
 
@@ -272,12 +287,12 @@ o400 endif
 (internal size: diameter wear + error, external size: diameter wear - error, Z face: length wear - error)
 #<wear_kind> = 0 (1 diameter, 2 length)
 #<wear_correction> = 0 (program units)
-#<wear_skipped> = 0 (1 under minimum, 2 no size or Z, 3 over maximum or aborted)
+#<wear_skipped> = 0 (1 under the tool wear minimum, 2 no size or Z, 3 aborted)
 o420 if [#<update_tool> GT 0]
-	o421 if [#<over_maximum> OR #<abort_after_log>]
+	o421 if [#<abort_after_log>]
 		#<wear_skipped> = 3
 	o421 elseif [#<size_check>]
-		o422 if [ABS[#<_result_size_dev>] LT #<update_minimum>]
+		o422 if [ABS[#<_result_size_dev>] LT #<update_tool_wear_minimum>]
 			#<wear_skipped> = 1
 		o422 elseif [#<size_type> EQ 1]
 			#<wear_kind> = 1
@@ -287,7 +302,7 @@ o420 if [#<update_tool> GT 0]
 			#<wear_correction> = [#<_result_size_dev> * #<feedback> * -1]
 		o422 endif
 	o421 elseif [#<has_z> AND [#<has_x> EQ 0]]
-		o423 if [ABS[#<_result_z_dev>] LT #<update_minimum>]
+		o423 if [ABS[#<_result_z_dev>] LT #<update_tool_wear_minimum>]
 			#<wear_skipped> = 1
 		o423 else
 			#<wear_kind> = 2
@@ -324,30 +339,30 @@ o410 if [#<display> EQ 1]
 		(DEBUG, T#<update_tool> length wear #<wear_correction> pending - call probe_apply_wear after the tool change)
 	o441 endif
 	o442 if [#<wear_skipped> EQ 1]
-		(DEBUG, T#<update_tool> wear not changed - difference under the update minimum #<update_minimum>)
+		(DEBUG, T#<update_tool> wear not changed - difference under the tool wear minimum #<update_tool_wear_minimum>)
 	o442 endif
 	o443 if [#<wear_skipped> EQ 2]
 		(DEBUG, T#<update_tool> wear not changed - needs _nominal_size on a size feature or probe_z)
 	o443 endif
 	o444 if [#<wear_skipped> EQ 3]
-		(DEBUG, T#<update_tool> wear not changed - over the update maximum or aborted)
+		(DEBUG, T#<update_tool> wear not changed - aborted)
 	o444 endif
 	o411 if [#<set_wcs> NE 1]
 		(DEBUG, G54.1 P#<_measuring_wcs> not updated - inspect only)
 	o411 endif
 	o412 if [[#<set_wcs> EQ 1] AND #<over_maximum>]
-		(DEBUG, G54.1 P#<_measuring_wcs> not updated - difference over the update maximum)
+		(DEBUG, G54.1 P#<_measuring_wcs> not updated - difference over the wcs update maximum #<update_wcs_maximum>)
 	o412 endif
 	o413 if [[#<set_wcs> EQ 1] AND #<abort_after_log>]
 		(DEBUG, G54.1 P#<_measuring_wcs> not updated - aborted)
 	o413 endif
 	o414 if [[#<set_wcs> EQ 1] AND [#<over_maximum> EQ 0] AND [#<abort_after_log> EQ 0]]
-		o415 if [#<wcs_updated> AND [#<update_minimum> GT 0]]
-			(DEBUG, G54.1 P#<_measuring_wcs> updated - axes under the update minimum #<update_minimum> unchanged)
+		o415 if [#<wcs_updated> AND #<wcs_held>]
+			(DEBUG, G54.1 P#<_measuring_wcs> updated - axes under the wcs update minimum #<update_wcs_minimum> unchanged)
 		o415 elseif [#<wcs_updated>]
 			(DEBUG, G54.1 P#<_measuring_wcs> updated)
 		o415 else
-			(DEBUG, G54.1 P#<_measuring_wcs> not updated - difference under the update minimum #<update_minimum>)
+			(DEBUG, G54.1 P#<_measuring_wcs> not updated - difference under the wcs update minimum #<update_wcs_minimum>)
 		o415 endif
 	o414 endif
 o410 endif
@@ -441,8 +456,9 @@ o510 endif
 #<_size_tolerance_plus> = 0
 #<_size_tolerance_minus> = 0
 #<_position_tolerance> = 0
-#<_update_minimum> = 0
-#<_update_maximum> = 0
+#<_update_wcs_minimum> = 0
+#<_update_wcs_maximum> = 0
+#<_update_tool_wear_minimum> = 0
 #<_update_tool> = 0
 #<_update_feedback> = 1
 

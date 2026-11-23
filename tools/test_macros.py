@@ -323,19 +323,19 @@ def feature_tests():
     for nominal, expect_update in ((9.0004, False), (9.002, True)):
         it, err = run_feature('probe_x_edge', edge, (11.5, 6, -8.5),
                               {'_first_position_to_probe': w(12.5, 0, 0)[0], '_measuring_wcs': 2,
-                               '_x_wcs_offset': nominal, '_update_minimum': 0.001})
+                               '_x_wcs_offset': nominal, '_update_wcs_minimum': 0.001})
         updated = abs(it.off[2][0] - 3.0) > 1e-9
-        check('update minimum %.4f: updated=%s' % (nominal - 9.0, expect_update), updated == expect_update,
+        check('wcs update minimum %.4f: updated=%s' % (nominal - 9.0, expect_update), updated == expect_update,
               (err, it.off[2][0]))
-        check('update minimum: _update_minimum cleared', it.named['_update_minimum'] == 0)
+        check('wcs update minimum: _update_wcs_minimum cleared', it.named['_update_wcs_minimum'] == 0)
 
     # update maximum: 0.5 away with max 0.1 -> status 4, pause, never updated
     it, err = run_feature('probe_x_edge', edge, (11.5, 6, -8.5),
                           {'_first_position_to_probe': w(12.5, 0, 0)[0], '_measuring_wcs': 2,
-                           '_x_wcs_offset': 9.5, '_update_maximum': 0.1})
-    check('update maximum: status 4', it.named['_result_status'] == 4, it.named['_result_status'])
-    check('update maximum: paused', 'M0' in kinds(it))
-    check('update maximum: not updated after resume', it.off[2] == G55, it.off[2])
+                           '_x_wcs_offset': 9.5, '_update_wcs_maximum': 0.1})
+    check('wcs update maximum: status 4', it.named['_result_status'] == 4, it.named['_result_status'])
+    check('wcs update maximum: paused', 'M0' in kinds(it))
+    check('wcs update maximum: not updated after resume', it.off[2] == G55, it.off[2])
 
     # position tolerance on a three-point bore, flag only
     it, err = run_feature('probe_bore_three_point', World([Cylinder(12.0, 6.0, 0.5, True)]), (12.03, 5.98, -8.5),
@@ -461,12 +461,25 @@ def feature_tests():
     check('wear Z: wcs not moved', it.off[2] == G55, it.off[2])
 
     # limits and edges
-    it, err = bore(dict(tol0, _update_tool=5, _update_minimum=0.003))
-    check('wear under minimum: nothing pending', not it.named.get('_wear_pending_diameter'),
+    it, err = bore(dict(tol0, _update_tool=5, _update_tool_wear_minimum=0.003))
+    check('wear under the tool wear minimum: nothing pending', not it.named.get('_wear_pending_diameter'),
           it.named.get('_wear_pending_diameter'))
-    it, err = bore(dict(tol0, _update_tool=5, _update_maximum=0.001))
-    check('wear over maximum: nothing pending, status 4', not it.named.get('_wear_pending_diameter') and
-          it.named['_result_status'] == 4)
+    check('tool wear minimum cleared', it.named['_update_tool_wear_minimum'] == 0)
+    it, err = bore(dict(tol0, _update_tool=5, _update_wcs_minimum=0.003))
+    check('wcs minimum does not hold back wear', abs(it.named.get('_wear_pending_diameter', 0) + 0.002) < 1e-9,
+          it.named.get('_wear_pending_diameter'))
+    it, err = bore(dict(tol0, _update_tool=5, _update_wcs_maximum=0.001))
+    check('inspect only: wcs maximum ignored, wear pending', it.named['_result_status'] == 0 and
+          abs(it.named.get('_wear_pending_diameter', 0) + 0.002) < 1e-9,
+          (it.named['_result_status'], it.named.get('_wear_pending_diameter')))
+    it, err = bore({'_nominal_size': 1.002, '_update_tool': 5, '_update_wcs_maximum': 0.1}, nominal_xy=(9.5, 3.0))
+    check('set wcs over the wcs maximum: status 4, wcs kept, wear pending', it.named['_result_status'] == 4 and
+          it.off[2] == G55 and abs(it.named.get('_wear_pending_diameter', 0) + 0.002) < 1e-9,
+          (err, it.named['_result_status'], it.off[2], it.named.get('_wear_pending_diameter')))
+    it, err = run_feature('probe_x_edge', World([Wall('X', 12.0, +1)]), (11.5, 6, -8.5),
+                          {'_first_position_to_probe': w(12.5, 0, 0)[0], '_measuring_wcs': 2,
+                           '_x_wcs_offset': 9.002, '_update_tool_wear_minimum': 0.01})
+    check('tool wear minimum does not hold back the wcs', abs(it.off[2][0] - (3.0 - 0.002)) < 1e-9, it.off[2])
     it, err = bore(dict(tol0, _update_tool=5, _size_tolerance_plus=0.001, _size_tolerance_minus=0.001,
                         _tolerance_action=1), pause='abort')
     check('wear: stop at M0 leaves nothing pending', not it.named.get('_wear_pending_diameter'),
