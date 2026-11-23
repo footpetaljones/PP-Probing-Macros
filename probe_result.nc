@@ -63,9 +63,9 @@ o109 endif
 o110 if [EXISTS[#<_update_wcs_maximum>]]
 	#<update_wcs_maximum> = ABS[#<_update_wcs_maximum>]
 o110 endif
-#<update_tool_wear_minimum> = 0
-o115 if [EXISTS[#<_update_tool_wear_minimum>]]
-	#<update_tool_wear_minimum> = ABS[#<_update_tool_wear_minimum>]
+#<update_tool_minimum> = 0
+o115 if [EXISTS[#<_update_tool_minimum>]]
+	#<update_tool_minimum> = ABS[#<_update_tool_minimum>]
 o115 endif
 #<update_tool> = 0
 o111 if [EXISTS[#<_update_tool>]]
@@ -287,12 +287,12 @@ o400 endif
 (internal size: diameter wear + error, external size: diameter wear - error, Z face: length wear - error)
 #<wear_kind> = 0 (1 diameter, 2 length)
 #<wear_correction> = 0 (program units)
-#<wear_skipped> = 0 (1 under the tool wear minimum, 2 no size or Z, 3 aborted)
+#<wear_skipped> = 0 (1 under the tool minimum, 2 no size or Z, 3 aborted)
 o420 if [#<update_tool> GT 0]
 	o421 if [#<abort_after_log>]
 		#<wear_skipped> = 3
 	o421 elseif [#<size_check>]
-		o422 if [ABS[#<_result_size_dev>] LT #<update_tool_wear_minimum>]
+		o422 if [ABS[#<_result_size_dev>] LT #<update_tool_minimum>]
 			#<wear_skipped> = 1
 		o422 elseif [#<size_type> EQ 1]
 			#<wear_kind> = 1
@@ -302,7 +302,7 @@ o420 if [#<update_tool> GT 0]
 			#<wear_correction> = [#<_result_size_dev> * #<feedback> * -1]
 		o422 endif
 	o421 elseif [#<has_z> AND [#<has_x> EQ 0]]
-		o423 if [ABS[#<_result_z_dev>] LT #<update_tool_wear_minimum>]
+		o423 if [ABS[#<_result_z_dev>] LT #<update_tool_minimum>]
 			#<wear_skipped> = 1
 		o423 else
 			#<wear_kind> = 2
@@ -339,7 +339,7 @@ o410 if [#<display> EQ 1]
 		(DEBUG, T#<update_tool> length wear #<wear_correction> pending - call probe_apply_wear after the tool change)
 	o441 endif
 	o442 if [#<wear_skipped> EQ 1]
-		(DEBUG, T#<update_tool> wear not changed - difference under the tool wear minimum #<update_tool_wear_minimum>)
+		(DEBUG, T#<update_tool> wear not changed - difference under the tool minimum #<update_tool_minimum>)
 	o442 endif
 	o443 if [#<wear_skipped> EQ 2]
 		(DEBUG, T#<update_tool> wear not changed - needs _nominal_size on a size feature or probe_z)
@@ -458,7 +458,7 @@ o510 endif
 #<_position_tolerance> = 0
 #<_update_wcs_minimum> = 0
 #<_update_wcs_maximum> = 0
-#<_update_tool_wear_minimum> = 0
+#<_update_tool_minimum> = 0
 #<_update_tool> = 0
 #<_update_feedback> = 1
 
