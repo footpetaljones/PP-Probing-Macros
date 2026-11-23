@@ -1,6 +1,6 @@
 # tormach-probing-v2 post: plan
 
-Status: **plan; post changes not started.** Decisions of 2026-11-23 in §5. `post/tormach-probing-v2.cps` is the stock Tormach PathPilot post
+Status: **§4 steps 1–9 implemented in `1369ca5`, not yet run in Fusion.** Decisions of 2026-11-23 in §5. Test with the probing test part (§6). `post/tormach-probing-v2.cps` is the stock Tormach PathPilot post
 (revision 44229, 2026-06-12) with only the description changed (commit e68dca1).
 
 ## 1. What the stock post does for probing
