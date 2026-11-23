@@ -85,6 +85,9 @@ Post properties (new group **Probing**), written once at program start, only in 
    use the probing Z when there is no obstacle → write `z - cycle.depth`.
 9. **Angle askew** checked in Fusion → warning that it is not checked.
 
+10. **Probe moves**: Z never moves together with X/Y in probing sections (between the X and Y halves of rectangular
+    cycles, after a cycle): Z first going up, X/Y first going down (`2aa01e0`). The macros had no combined moves.
+
 Not changed: existing macro names, T99/H99 check, pattern/mirror checks, plane-angle cycles rejected.
 
 ## 5. Decisions

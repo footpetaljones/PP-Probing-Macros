@@ -65,8 +65,16 @@ against a model of this part (inner corner fix, diameters, island path, toleranc
   the island or the boss, and of the pocket operation (they showed the body instead of faces, probing type
   unknown). Reselected by script; the probing type had to be set again where Fusion picked another one
   (inner corner, X channel, rectangular pocket, 3-point boss, channel with island, Y wall).
-- **Inner corner G57 with R0.200**: Fusion starts the corner probe clearance + r = 0.159 from each wall, which
-  is inside the 0.200 corner radius, so both touches land on the radius: about 0.006 in short in X and Y.
-  Needs a larger probe clearance in that operation (0.15 in or more) or a smaller corner radius.
-- **Pocket operation with compensation "In control: wear"** generates nothing for the three pockets with an
-  island/boss (#3, #4, #5; Fusion warning), only #2. With "In computer" all four are cut.
+- **Inner corner G57 with R0.200**: Fusion starts the corner probe clearance + r from each wall. With the 0.100 in
+  clearance (0.159 in) both touches landed on the 0.200 radius, about 0.006 in short in X and Y. Probe clearance in
+  that operation is now 0.15 in / 4 mm: touches at 0.209 in (5.5 mm) from the corner walls, on the straight walls.
+- **Pocket operation and wear compensation**: a 2D Pocket with compensation "In control: wear" generates nothing for
+  the three pockets with an island/boss (#3, #4, #5), only #2, whatever the leads. So "Pockets, groove and
+  counterbore" is "In computer" again (cuts all four to size; its 0.5 mm stock to leave is not enabled), and
+  "Walls #2 #3 #4, wear" (2D Contour, T201, compensation wear, perpendicular lead 0.04 in + 0.02 in arc, face
+  contours with side "start inside") recuts those walls to size with G41.2 - one G41.2/G40 per wall, islands
+  included. It is the reference operation for the T201 wear probing. #5 has no wear contour: the tool center has
+  0.0625 in between the counterbore wall and the boss, no room for a lead.
+- Probing output after these changes: the wear operations post `_update_tool = 201`, `_update_feedback = 0.8`,
+  `_update_tool_minimum = 0.0005`; the bore with island posts `o<probe_circular_bore_island>` (positioning circle
+  0.8069, probe circle 1.3069, clearance 0.375, probe Z -0.1841). No move moves Z together with X/Y (post 2aa01e0).
