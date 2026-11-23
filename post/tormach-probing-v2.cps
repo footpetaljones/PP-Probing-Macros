@@ -909,8 +909,28 @@ function approach(value) {
 var PROBE_RAPID = 0;
 var PROBE_FEED = 1;
 function protectedProbeMove(x, y, z, feedType) {
-  writeBlock(gMotionModal.format(1), xOutput.format(x), yOutput.format(y), zOutput.format(z),
-    feedType == PROBE_RAPID ? "F#<_probe_rapid_feed_per_min>" : "F#<_probe_rough_feed_per_min>");
+  writeProbeSafeMove(1, x, y, z, feedType == PROBE_RAPID ? "F#<_probe_rapid_feed_per_min>" : "F#<_probe_rough_feed_per_min>");
+}
+
+/** Probe moves never move Z together with X/Y: Z first when going up, X/Y first when going down.
+  After a macro the probe can be higher than the post's last Z (the macros retract to
+  _z_clearance_position), so an unknown or lower last Z counts as going up. */
+function writeProbeSafeMove(motion, _x, _y, _z, feed) {
+  var currentZ = zOutput.getCurrent();
+  var up = (typeof currentZ != "number") || isNaN(currentZ) || (_z > currentZ);
+  var steps = up ? ["z", "xy"] : ["xy", "z"];
+  for (var i = 0; i < steps.length; ++i) {
+    var words = (steps[i] == "z") ? [zOutput.format(_z)] : [xOutput.format(_x), yOutput.format(_y)];
+    var block = [];
+    for (var j = 0; j < words.length; ++j) {
+      if (words[j]) {
+        block.push(words[j]);
+      }
+    }
+    if (block.length > 0) {
+      writeBlock.apply(this, [gMotionModal.format(motion)].concat(block, feed ? [feed] : []));
+    }
+  }
 }
 
 function onCyclePoint(x, y, z) {
@@ -3188,6 +3208,11 @@ function writeProgramHeader() {
 
 // >>>>> INCLUDED FROM include_files/onRapid_fanuc.cpi
 function onRapid(_x, _y, _z) {
+  if (isProbeOperation() && (pendingRadiusCompensation < 0)) { // probe: Z and X/Y in separate moves
+    writeProbeSafeMove(0, _x, _y, _z, "");
+    forceFeed();
+    return;
+  }
   var x = xOutput.format(_x);
   var y = yOutput.format(_y);
   var z = zOutput.format(_z);
