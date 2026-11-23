@@ -105,10 +105,9 @@ o121 endif
 o122 if [#<has_z>]
 	#<_result_z_dev> = [#<_result_z> - #<_z_wcs_offset>]
 o122 endif
-#<_result_tp_dev> = 0
-o123 if [#<has_x> AND #<has_y>]
-	#<_result_tp_dev> = [2 * SQRT[[#<_result_x_dev> * #<_result_x_dev>] + [#<_result_y_dev> * #<_result_y_dev>]]]
-o123 endif
+(true position: diameter of the zone around the nominal that holds the feature, 2 x its distance from nominal)
+(unmeasured axes have a deviation of 0, so a single-axis feature gives 2 x its one deviation)
+#<_result_tp_dev> = [2 * SQRT[[#<_result_x_dev> * #<_result_x_dev>] + [#<_result_y_dev> * #<_result_y_dev>] + [#<_result_z_dev> * #<_result_z_dev>]]]
 #<largest_position_dev> = ABS[#<_result_x_dev>]
 o124 if [ABS[#<_result_y_dev>] GT #<largest_position_dev>]
 	#<largest_position_dev> = ABS[#<_result_y_dev>]
@@ -137,7 +136,7 @@ o140 if [#<size_check> AND [[#<tolerance_plus> GT 0] OR [#<tolerance_minus> GT 0
 	o141 endif
 o140 endif
 #<_result_position_status> = 0
-o143 if [[#<position_tolerance> GT 0] AND [#<largest_position_dev> GT #<position_tolerance>]]
+o143 if [[#<position_tolerance> GT 0] AND [#<_result_tp_dev> GT #<position_tolerance>]]
 	#<_result_position_status> = 1
 o143 endif
 #<over_maximum> = 0
@@ -162,6 +161,9 @@ o149 endif
 
 (display - the Status tab lists newest first, so lines are sent bottom-up)
 o200 if [#<display> EQ 1]
+	o230 if [#<position_tolerance> GT 0]
+		(DEBUG,   true position #<_result_tp_dev>   tolerance #<position_tolerance>)
+	o230 endif
 	o201 if [#<has_z>]
 		(DEBUG,   Z #<_result_z>   nominal #<_z_wcs_offset>   dev #<_result_z_dev>)
 	o201 endif
@@ -188,7 +190,7 @@ o200 if [#<display> EQ 1]
 		(DEBUG,   SIZE OUT OF TOLERANCE - material missing, scrap)
 	o208 endif
 	o209 if [#<_result_status> EQ 3]
-		(DEBUG,   POSITION OUT OF TOLERANCE #<position_tolerance>)
+		(DEBUG,   POSITION OUT OF TOLERANCE - true position over #<position_tolerance>)
 	o209 endif
 	o210 if [#<_result_status> EQ 4]
 		(DEBUG,   DIFFERENCE OVER UPDATE MAXIMUM #<update_maximum>)
@@ -350,7 +352,7 @@ o410 endif
 (results file - 1 append, 2 start a new file with a header row)
 o500 if [#<log> EQ 2]
 	(LOGOPEN,/home/operator/gcode/probe_results.csv)
-	(LOG,epoch,feature,macro,wcs,set_wcs,wcs_updated,status,x_nominal,x,x_dev,y_nominal,y,y_dev,z_nominal,z,z_dev,size_nominal,size,size_dev,update_tool,wear_correction)
+	(LOG,epoch,feature,macro,wcs,set_wcs,wcs_updated,status,x_nominal,x,x_dev,y_nominal,y,y_dev,z_nominal,z,z_dev,true_position,size_nominal,size,size_dev,update_tool,wear_correction)
 	(LOGCLOSE)
 	#<_log_results> = 1
 o500 endif
@@ -380,6 +382,7 @@ o510 if [#<log> GT 0]
 	#<yd> = #<_result_y_dev>
 	#<zm> = #<_result_z>
 	#<zd> = #<_result_z_dev>
+	#<tp> = #<_result_tp_dev>
 	#<sn> = #<nominal_size>
 	#<sm> = #<_result_size>
 	#<sd> = #<_result_size_dev>
@@ -387,40 +390,40 @@ o510 if [#<log> GT 0]
 	#<wc> = #<wear_correction>
 	(LOGAPPEND,/home/operator/gcode/probe_results.csv)
 	o521 if [#<macro> EQ 1]
-		(LOG,#<t>,#<fn>,probe_z,#<w>,#<sw>,#<up>,#<st>,,,,,,,#<zn>,#<zm>,#<zd>,,,,#<ut>,#<wc>)
+		(LOG,#<t>,#<fn>,probe_z,#<w>,#<sw>,#<up>,#<st>,,,,,,,#<zn>,#<zm>,#<zd>,#<tp>,,,,#<ut>,#<wc>)
 	o521 endif
 	o522 if [#<macro> EQ 2]
-		(LOG,#<t>,#<fn>,probe_x_edge,#<w>,#<sw>,#<up>,#<st>,#<xn>,#<xm>,#<xd>,,,,,,,,,,#<ut>,#<wc>)
+		(LOG,#<t>,#<fn>,probe_x_edge,#<w>,#<sw>,#<up>,#<st>,#<xn>,#<xm>,#<xd>,,,,,,,#<tp>,,,,#<ut>,#<wc>)
 	o522 endif
 	o523 if [#<macro> EQ 3]
-		(LOG,#<t>,#<fn>,probe_y_edge,#<w>,#<sw>,#<up>,#<st>,,,,#<yn>,#<ym>,#<yd>,,,,,,,#<ut>,#<wc>)
+		(LOG,#<t>,#<fn>,probe_y_edge,#<w>,#<sw>,#<up>,#<st>,,,,#<yn>,#<ym>,#<yd>,,,,#<tp>,,,,#<ut>,#<wc>)
 	o523 endif
 	o524 if [#<macro> EQ 4]
-		(LOG,#<t>,#<fn>,probe_xy_corner,#<w>,#<sw>,#<up>,#<st>,#<xn>,#<xm>,#<xd>,#<yn>,#<ym>,#<yd>,,,,,,,#<ut>,#<wc>)
+		(LOG,#<t>,#<fn>,probe_xy_corner,#<w>,#<sw>,#<up>,#<st>,#<xn>,#<xm>,#<xd>,#<yn>,#<ym>,#<yd>,,,,#<tp>,,,,#<ut>,#<wc>)
 	o524 endif
 	o525 if [#<macro> EQ 5]
-		(LOG,#<t>,#<fn>,probe_x_pocket,#<w>,#<sw>,#<up>,#<st>,#<xn>,#<xm>,#<xd>,,,,,,,#<sn>,#<sm>,#<sd>,#<ut>,#<wc>)
+		(LOG,#<t>,#<fn>,probe_x_pocket,#<w>,#<sw>,#<up>,#<st>,#<xn>,#<xm>,#<xd>,,,,,,,#<tp>,#<sn>,#<sm>,#<sd>,#<ut>,#<wc>)
 	o525 endif
 	o526 if [#<macro> EQ 6]
-		(LOG,#<t>,#<fn>,probe_y_pocket,#<w>,#<sw>,#<up>,#<st>,,,,#<yn>,#<ym>,#<yd>,,,,#<sn>,#<sm>,#<sd>,#<ut>,#<wc>)
+		(LOG,#<t>,#<fn>,probe_y_pocket,#<w>,#<sw>,#<up>,#<st>,,,,#<yn>,#<ym>,#<yd>,,,,#<tp>,#<sn>,#<sm>,#<sd>,#<ut>,#<wc>)
 	o526 endif
 	o527 if [#<macro> EQ 7]
-		(LOG,#<t>,#<fn>,probe_x_boss,#<w>,#<sw>,#<up>,#<st>,#<xn>,#<xm>,#<xd>,,,,,,,#<sn>,#<sm>,#<sd>,#<ut>,#<wc>)
+		(LOG,#<t>,#<fn>,probe_x_boss,#<w>,#<sw>,#<up>,#<st>,#<xn>,#<xm>,#<xd>,,,,,,,#<tp>,#<sn>,#<sm>,#<sd>,#<ut>,#<wc>)
 	o527 endif
 	o528 if [#<macro> EQ 8]
-		(LOG,#<t>,#<fn>,probe_y_boss,#<w>,#<sw>,#<up>,#<st>,,,,#<yn>,#<ym>,#<yd>,,,,#<sn>,#<sm>,#<sd>,#<ut>,#<wc>)
+		(LOG,#<t>,#<fn>,probe_y_boss,#<w>,#<sw>,#<up>,#<st>,,,,#<yn>,#<ym>,#<yd>,,,,#<tp>,#<sn>,#<sm>,#<sd>,#<ut>,#<wc>)
 	o528 endif
 	o529 if [#<macro> EQ 9]
-		(LOG,#<t>,#<fn>,probe_circular_bore,#<w>,#<sw>,#<up>,#<st>,#<xn>,#<xm>,#<xd>,#<yn>,#<ym>,#<yd>,,,,#<sn>,#<sm>,#<sd>,#<ut>,#<wc>)
+		(LOG,#<t>,#<fn>,probe_circular_bore,#<w>,#<sw>,#<up>,#<st>,#<xn>,#<xm>,#<xd>,#<yn>,#<ym>,#<yd>,,,,#<tp>,#<sn>,#<sm>,#<sd>,#<ut>,#<wc>)
 	o529 endif
 	o530 if [#<macro> EQ 10]
-		(LOG,#<t>,#<fn>,probe_circular_boss,#<w>,#<sw>,#<up>,#<st>,#<xn>,#<xm>,#<xd>,#<yn>,#<ym>,#<yd>,,,,#<sn>,#<sm>,#<sd>,#<ut>,#<wc>)
+		(LOG,#<t>,#<fn>,probe_circular_boss,#<w>,#<sw>,#<up>,#<st>,#<xn>,#<xm>,#<xd>,#<yn>,#<ym>,#<yd>,,,,#<tp>,#<sn>,#<sm>,#<sd>,#<ut>,#<wc>)
 	o530 endif
 	o531 if [#<macro> EQ 11]
-		(LOG,#<t>,#<fn>,probe_bore_three_point,#<w>,#<sw>,#<up>,#<st>,#<xn>,#<xm>,#<xd>,#<yn>,#<ym>,#<yd>,,,,#<sn>,#<sm>,#<sd>,#<ut>,#<wc>)
+		(LOG,#<t>,#<fn>,probe_bore_three_point,#<w>,#<sw>,#<up>,#<st>,#<xn>,#<xm>,#<xd>,#<yn>,#<ym>,#<yd>,,,,#<tp>,#<sn>,#<sm>,#<sd>,#<ut>,#<wc>)
 	o531 endif
 	o532 if [#<macro> EQ 12]
-		(LOG,#<t>,#<fn>,probe_boss_three_point,#<w>,#<sw>,#<up>,#<st>,#<xn>,#<xm>,#<xd>,#<yn>,#<ym>,#<yd>,,,,#<sn>,#<sm>,#<sd>,#<ut>,#<wc>)
+		(LOG,#<t>,#<fn>,probe_boss_three_point,#<w>,#<sw>,#<up>,#<st>,#<xn>,#<xm>,#<xd>,#<yn>,#<ym>,#<yd>,,,,#<tp>,#<sn>,#<sm>,#<sd>,#<ut>,#<wc>)
 	o532 endif
 	(LOGCLOSE)
 o510 endif

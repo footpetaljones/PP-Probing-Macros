@@ -336,10 +336,29 @@ def feature_tests():
     check('position tolerance: true position 0.004', abs(it.named['_result_tp_dev'] - 0.004) < 1e-9,
           it.named['_result_tp_dev'])
 
+    # true position: single axis -> 2 x deviation; X edge 0.0004 / 0.0006 off with tolerance 0.001
+    for nominal, expect in ((9.0004, 0), (9.0006, 3)):
+        it, err = run_feature('probe_x_edge', edge, (11.5, 6, -8.5),
+                              {'_first_position_to_probe': w(12.5, 0, 0)[0], '_measuring_wcs': 2,
+                               '_x_wcs_offset': nominal, '_set_wcs': 0, '_position_tolerance': 0.001,
+                               '_tolerance_action': 0})
+        check('true position x edge %.4f off: status %d' % (nominal - 9.0, expect),
+              it.named.get('_result_status') == expect and
+              abs(it.named['_result_tp_dev'] - 2 * (nominal - 9.0)) < 1e-9,
+              (err, it.named.get('_result_status'), it.named.get('_result_tp_dev')))
+    # true position: X and Y each 0.0006 off (inside +-0.00075 per axis) -> TP 0.0017 over 0.0015
+    it, err = bore({'_set_wcs': 0, '_position_tolerance': 0.0015, '_tolerance_action': 0,
+                    '_log_results': 1}, nominal_xy=(9.0006, 3.0006))
+    check('true position bore: status 3', it.named.get('_result_status') == 3 and
+          abs(it.named['_result_tp_dev'] - 2 * (2 * 0.0006 ** 2) ** 0.5) < 1e-9,
+          (err, it.named.get('_result_status'), it.named.get('_result_tp_dev')))
+    check('true position bore: logged', it.logfile and abs(float(it.logfile[-1].split(',')[16]) -
+          it.named['_result_tp_dev']) < 1e-6, it.logfile[-1] if it.logfile else None)
+
     # logging: new file with header, then append
     it, err = bore({'_log_results': 2, '_feature_number': 7})
     check('log 2: header + 1 row', len(it.logfile) == 2 and it.logfile[0].startswith('epoch,'), it.logfile)
-    check('log 2: 21 columns', len(it.logfile[1].split(',')) == 21 == len(it.logfile[0].split(',')),
+    check('log 2: 22 columns', len(it.logfile[1].split(',')) == 22 == len(it.logfile[0].split(',')),
           it.logfile[1] if len(it.logfile) > 1 else None)
     check('log 2: switches to append', it.named['_log_results'] == 1)
     check('log row: macro name and feature', ',probe_circular_bore,' in it.logfile[1] and
@@ -423,7 +442,7 @@ def feature_tests():
           any('needs _nominal_size' in m for k, m in it.messages if k == 'DEBUG'))
     it, err = bore({'_log_results': 2, '_nominal_size': 1.002, '_set_wcs': 0, '_update_tool': 5,
                     '_tolerance_action': 0})
-    check('log: 21 columns with tool and correction', len(it.logfile[1].split(',')) == 21 and
+    check('log: 22 columns with tool and correction', len(it.logfile[1].split(',')) == 22 and
           it.logfile[1].split(',')[-2:] == ['5.000000', '-0.002000'], it.logfile)
 
     # ---- orientation: R = offset - direction, spindle angle counts CW
