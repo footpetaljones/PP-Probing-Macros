@@ -317,13 +317,51 @@ properties = {
       {title:"High speed roughing", id:"5"},
     ],
     value: "-1"
+  },
+  probeShowResults: {
+    title      : "Show probing results",
+    description: "Show each probing result on the PathPilot Status tab.",
+    group      : "probing",
+    type       : "boolean",
+    value      : true,
+    scope      : "post"
+  },
+  probeToleranceAction: {
+    title      : "Out of tolerance action",
+    description: "What the probing macros do when a feature is out of tolerance: pause with M0 (cycle start continues), abort, or only flag it in the results.",
+    group      : "probing",
+    type       : "enum",
+    values     : [
+      {title:"Pause (M0)", id:"1"},
+      {title:"Abort", id:"2"},
+      {title:"Flag only", id:"0"}
+    ],
+    value: "1",
+    scope: "post"
+  },
+  probeOrient: {
+    title      : "Orient wireless probe",
+    description: "Orient the spindle before each probing move so the same point of the stylus touches. Wireless probes only; wired probes are never oriented.",
+    group      : "probing",
+    type       : "boolean",
+    value      : true,
+    scope      : "post"
+  },
+  probeNewResultsFile: {
+    title      : "New results file each program",
+    description: "Start probe_results.csv over, with a header row, at the first operation with Print results.",
+    group      : "probing",
+    type       : "boolean",
+    value      : false,
+    scope      : "post"
   }
 };
 
 // define the custom property groups
 groupDefinitions = {
   coolant: {title:"Coolant", order:51, collapsed:true, description:"Smart/Multi-Coolant options."},
-  tapping: {title:"Tapping", order:52, collapsed:true, description:"Tapping options."}
+  tapping: {title:"Tapping", order:52, collapsed:true, description:"Tapping options."},
+  probing: {title:"Probing", order:53, collapsed:true, description:"CAM driven probing macro options."}
 };
 
 // wcs definiton
@@ -353,6 +391,7 @@ var secFormat = createFormat({decimals:3, type:FORMAT_REAL}); // seconds - range
 var milliFormat = createFormat({decimals:0}); // milliseconds // range 1-9999
 var taperFormat = createFormat({decimals:1, scale:DEG});
 var qFormat = createFormat({prefix:"Q", decimals:0});
+var ratioFormat = createFormat({decimals:3, type:FORMAT_REAL}); // probing feedback fraction
 
 var xOutput = createOutputVariable({onchange:function() {state.retractedX = false;}, prefix:"X"}, xyzFormat);
 var yOutput = createOutputVariable({onchange:function() {state.retractedY = false;}, prefix:"Y"}, xyzFormat);
@@ -387,6 +426,12 @@ var maxTappingRetractSpeed = 2000;
 // collected state
 var coolantZHeight;
 var toolChecked = false; // specifies that the tool has been checked with the probe
+var probeState = {
+  featureNumber: 0, // running count of features with Print results
+  logResults   : 0, // value of #<_log_results> as the macros will see it
+  wearTools    : {} // tool number -> {diameter, length}: corrections waiting for that tool's next tool change
+};
+var WARNING_ANGLE_ASKEW = 10;
 
 var settings = {
   coolant: {
@@ -665,6 +710,7 @@ function onOpen() {
     conditional(getProperty("useSmoothing") == -1, gFormat.format(64)), gFormat.format(50), gPlaneModal.format(17), gFormat.format(40), gFormat.format(80), gFeedModeModal.format(94), gFormat.format(91.1), gFormat.format(49));
 
   writeBlock(gUnitModal.format(unit == MM ? 21 : 20), formatComment(localize(unit == MM ? "Metric" : "Inch")));
+  writeProbingDefaults();
 
   onCommand(COMMAND_START_CHIP_TRANSPORT);
   validateCommonParameters();
@@ -734,6 +780,9 @@ function onSection() {
   writeToolCall(tool, insertToolCall);
   if (tool.manualToolChange) {
     onCommand(COMMAND_LOAD_TOOL); // force tool call for manual tool change
+  }
+  if (insertToolCall && !isProbingSection(currentSection)) {
+    writeApplyWear(tool);
   }
   startSpindle(tool, true);
 
@@ -1139,7 +1188,7 @@ function writeProbeCycle(cycle, x, y, z) {
       var probeExpected = x + approach(cycle.approach1) * (cycle.probeClearance + probeRadius);
       writeProbePosition(probeExpected + approach(cycle.approach1) * (cycle.probeOvertravel + probeRadius));
       writeProbeExpectedX(probeExpected, true);
-      writeBlock("o<probe_x_edge> call", formatComment("Probe in X"));
+      writeProbeCall("probe_x_edge", "Probe in X");
       break;
     case "probing-y":
       protectedProbeMove(x, y, cycle.retract, PROBE_RAPID);
@@ -1147,14 +1196,14 @@ function writeProbeCycle(cycle, x, y, z) {
       var probeExpected = y + approach(cycle.approach1) * (cycle.probeClearance + probeRadius);
       writeProbePosition(probeExpected + approach(cycle.approach1) * (cycle.probeOvertravel + probeRadius));
       writeProbeExpectedY(probeExpected, true);
-      writeBlock("o<probe_y_edge> call", formatComment("Probe in Y"));
+      writeProbeCall("probe_y_edge", "Probe in Y");
       break;
     case "probing-z":
       protectedProbeMove(x, y, cycle.retract, PROBE_RAPID);
       var probePosition = z - cycle.depth;
       writeProbePosition(probePosition - cycle.probeOvertravel);
       writeProbeExpectedZ(probePosition, true);
-      writeBlock("o<probe_z> call", formatComment("Probe in Z"));
+      writeProbeCall("probe_z", "Probe in Z");
       break;
     case "probing-x-wall":
       var probeWidth = cycle.width1 / 2;
@@ -1167,7 +1216,7 @@ function writeProbeCycle(cycle, x, y, z) {
       writeProbePosition(x + probeWidth - (cycle.probeOvertravel - probeRadius), x - probeWidth + (cycle.probeOvertravel - probeRadius));
       writeProbeXYZPosition(p2, y, z - cycle.depth);
       writeProbeExpectedX(x, true);
-      writeBlock("o<probe_x_boss> call", formatComment("Probe X-Boss"));
+      writeProbeCall("probe_x_boss", "Probe X-Boss", cycle.width1);
       break;
     case "probing-y-wall":
       var probeWidth = cycle.width1 / 2;
@@ -1180,7 +1229,7 @@ function writeProbeCycle(cycle, x, y, z) {
       writeProbePosition(y + probeWidth - (cycle.probeOvertravel - probeRadius), y - probeWidth + (cycle.probeOvertravel - probeRadius));
       writeProbeXYZPosition(x, p2, z - cycle.depth);
       writeProbeExpectedY(y, true);
-      writeBlock("o<probe_y_boss> call", formatComment("Probe Y-Boss"));
+      writeProbeCall("probe_y_boss", "Probe Y-Boss", cycle.width1);
       break;
     case "probing-x-channel":
       var probeWidth = cycle.width1 / 2;
@@ -1189,11 +1238,11 @@ function writeProbeCycle(cycle, x, y, z) {
       onExpandedRapid(p1, y, cycle.clearance);
       protectedProbeMove(p1, y, cycle.retract, PROBE_RAPID);
       protectedProbeMove(p1, y, z - cycle.depth, PROBE_FEED);
-      writeProbeClearance(0); // no island
+      writeProbeClearance(z - cycle.depth); // no island - stay at the probing height
       writeProbePosition(x + probeWidth + (cycle.probeOvertravel - probeRadius), x - probeWidth - (cycle.probeOvertravel - probeRadius));
       writeProbeXYZPosition(p2, y, z - cycle.depth);
       writeProbeExpectedX(x, true);
-      writeBlock("o<probe_x_pocket> call", formatComment("Probe X-Pocket"));
+      writeProbeCall("probe_x_pocket", "Probe X-Pocket", cycle.width1);
       break;
     case "probing-x-channel-with-island":
       var probeWidth = cycle.width1 / 2;
@@ -1206,7 +1255,7 @@ function writeProbeCycle(cycle, x, y, z) {
       writeProbePosition(x + probeWidth + (cycle.probeOvertravel - probeRadius), x - probeWidth - (cycle.probeOvertravel - probeRadius));
       writeProbeXYZPosition(p2, y, z - cycle.depth);
       writeProbeExpectedX(x, true);
-      writeBlock("o<probe_x_pocket> call", formatComment("Probe X-Pocket"));
+      writeProbeCall("probe_x_pocket", "Probe X-Pocket", cycle.width1);
       break;
     case "probing-y-channel":
       var probeWidth = cycle.width1 / 2;
@@ -1215,11 +1264,11 @@ function writeProbeCycle(cycle, x, y, z) {
       onExpandedRapid(x, p1, cycle.clearance);
       protectedProbeMove(x, p1, cycle.retract, PROBE_RAPID);
       protectedProbeMove(x, p1, z - cycle.depth, PROBE_FEED);
-      writeProbeClearance(0);
+      writeProbeClearance(z - cycle.depth); // no island - stay at the probing height
       writeProbePosition(y + probeWidth + (cycle.probeOvertravel - probeRadius), y - probeWidth - (cycle.probeOvertravel - probeRadius));
       writeProbeXYZPosition(x, p2, z - cycle.depth);
       writeProbeExpectedY(y, true);
-      writeBlock("o<probe_y_pocket> call", formatComment("Probe Y-Pocket"));
+      writeProbeCall("probe_y_pocket", "Probe Y-Pocket", cycle.width1);
       break;
     case "probing-y-channel-with-island":
       var probeWidth = cycle.width1 / 2;
@@ -1232,32 +1281,32 @@ function writeProbeCycle(cycle, x, y, z) {
       writeProbePosition(y + probeWidth + (cycle.probeOvertravel - probeRadius), y - probeWidth - (cycle.probeOvertravel - probeRadius));
       writeProbeXYZPosition(x, p2, z - cycle.depth);
       writeProbeExpectedY(y, true);
-      writeBlock("o<probe_y_pocket> call", formatComment("Probe Y-Pocket"));
+      writeProbeCall("probe_y_pocket", "Probe Y-Pocket", cycle.width1);
       break;
     case "probing-xy-circular-boss":
       protectedProbeMove(x, y, cycle.retract, PROBE_RAPID);
       writeProbePosition(z - cycle.depth);
       writeProbeClearance(cycle.retract);
-      writeProbeDiameter(cycle.width1 - (cycle.probeOvertravel - probeRadius), cycle.width1 + (cycle.probeClearance + probeRadius));
+      writeProbeDiameter(cycle.width1 - 2 * (cycle.probeOvertravel - probeRadius), cycle.width1 + 2 * (cycle.probeClearance + probeRadius));
       writeProbeExpectedX(x, false);
       writeProbeExpectedY(y, true);
-      writeBlock("o<probe_circular_boss> call", formatComment("Probe Circular Boss"));
+      writeProbeCall("probe_circular_boss", "Probe Circular Boss", cycle.width1);
       break;
     case "probing-xy-circular-partial-boss":
       protectedProbeMove(x, y, cycle.retract, PROBE_RAPID);
       writeProbePosition(z - cycle.depth);
       writeProbeClearance(cycle.retract);
-      writeProbeDiameter(cycle.width1 - (cycle.probeOvertravel - probeRadius), cycle.width1 + (cycle.probeClearance + probeRadius));
+      writeProbeDiameter(cycle.width1 - 2 * (cycle.probeOvertravel - probeRadius), cycle.width1 + 2 * (cycle.probeClearance + probeRadius));
       writeProbeVector(cycle.partialCircleAngleA, cycle.partialCircleAngleB, cycle.partialCircleAngleC);
       writeProbeExpectedX(x, false);
       writeProbeExpectedY(y, true);
-      writeBlock("o<probe_boss_three_point> call", formatComment("Probe Partial Circular Boss"));
+      writeProbeCall("probe_boss_three_point", "Probe Partial Circular Boss", cycle.width1);
       break;
     case "probing-xy-circular-hole":
       protectedProbeMove(x, y, cycle.retract, PROBE_RAPID);
       protectedProbeMove(x, y, z - cycle.depth, PROBE_FEED);
-      writeProbeClearance(0); // no island
-      writeProbeDiameter(cycle.width1 + (cycle.probeOvertravel - probeRadius), cycle.width1 - (cycle.probeClearance + probeRadius));
+      writeProbeClearance(z - cycle.depth); // no island - stay at the probing height
+      writeProbeDiameter(cycle.width1 + 2 * (cycle.probeOvertravel - probeRadius), cycle.width1 - 2 * (cycle.probeClearance + probeRadius));
       writeProbeExpectedX(x, false);
       writeProbeExpectedY(y, true);
       writeBlock("o<probe_circular_bore> call", formatComment("Probe Circular Bore"));
@@ -1265,20 +1314,20 @@ function writeProbeCycle(cycle, x, y, z) {
     case "probing-xy-circular-partial-hole":
       protectedProbeMove(x, y, cycle.retract, PROBE_RAPID);
       protectedProbeMove(x, y, z - cycle.depth, PROBE_FEED);
-      writeProbeDiameter(cycle.width1 + (cycle.probeOvertravel - probeRadius), cycle.width1 - (cycle.probeClearance + probeRadius));
+      writeProbeDiameter(cycle.width1 + 2 * (cycle.probeOvertravel - probeRadius), cycle.width1 - 2 * (cycle.probeClearance + probeRadius));
       writeProbeVector(cycle.partialCircleAngleA, cycle.partialCircleAngleB, cycle.partialCircleAngleC);
       writeProbeExpectedX(x, false);
       writeProbeExpectedY(y, true);
-      writeBlock("o<probe_bore_three_point> call", formatComment("Probe Partial Circular Bore"));
+      writeProbeCall("probe_bore_three_point", "Probe Partial Circular Bore", cycle.width1);
       break;
     case "probing-xy-circular-hole-with-island":
-      protectedProbeMove(x, y, cycle.retract, PROBE_RAPID);
-      protectedProbeMove(x, y, z - cycle.depth, PROBE_FEED);
+      protectedProbeMove(x, y, cycle.retract, PROBE_RAPID); // above the island; the macro goes down beside it
+      writeProbePosition(z - cycle.depth);
       writeProbeClearance(cycle.retract);
-      writeProbeDiameter(cycle.width1 + (cycle.probeOvertravel - probeRadius), cycle.width1 - (cycle.probeClearance + probeRadius));
+      writeProbeDiameter(cycle.width1 + 2 * (cycle.probeOvertravel - probeRadius), cycle.width1 - 2 * (cycle.probeClearance + probeRadius));
       writeProbeExpectedX(x, false);
       writeProbeExpectedY(y, true);
-      writeBlock("o<probe_circular_bore> call", formatComment("Probe Circular Bore"));
+      writeProbeCall("probe_circular_bore_island", "Probe Circular Bore with Island", cycle.width1);
       break;
     case "probing-xy-rectangular-hole":
       var probeWidth = cycle.width1 / 2;
@@ -1287,22 +1336,22 @@ function writeProbeCycle(cycle, x, y, z) {
       onExpandedRapid(p1, y, cycle.clearance);
       protectedProbeMove(p1, y, cycle.retract, PROBE_RAPID);
       protectedProbeMove(p1, y, z - cycle.depth, PROBE_FEED);
-      writeProbeClearance(0); // no island
+      writeProbeClearance(z - cycle.depth); // no island - stay at the probing height
       writeProbePosition(x + probeWidth + (cycle.probeOvertravel - probeRadius), x - probeWidth - (cycle.probeOvertravel - probeRadius));
       writeProbeXYZPosition(p2, y, z - cycle.depth);
       writeProbeExpectedX(x, true);
-      writeBlock("o<probe_x_pocket> call", formatComment("Probe X-Pocket"));
+      writeProbeCall("probe_x_pocket", "Probe X-Pocket", cycle.width1);
 
       probeWidth = cycle.width2 / 2;
       p1 = y + probeWidth - (cycle.probeClearance + probeRadius);
       p2 = y - probeWidth + (cycle.probeClearance + probeRadius);
       protectedProbeMove(x, p1, cycle.retract, PROBE_RAPID);
       protectedProbeMove(x, p1, z - cycle.depth, PROBE_FEED);
-      writeProbeClearance(0); // no island
+      writeProbeClearance(z - cycle.depth); // no island - stay at the probing height
       writeProbePosition(y + probeWidth + (cycle.probeOvertravel - probeRadius), y - probeWidth - (cycle.probeOvertravel - probeRadius));
       writeProbeXYZPosition(x, p2, z - cycle.depth);
       writeProbeExpectedY(y, true);
-      writeBlock("o<probe_y_pocket> call", formatComment("Probe Y-Pocket"));
+      writeProbeCall("probe_y_pocket", "Probe Y-Pocket", cycle.width2);
       break;
     case "probing-xy-rectangular-boss":
       var probeWidth = cycle.width1 / 2;
@@ -1315,7 +1364,7 @@ function writeProbeCycle(cycle, x, y, z) {
       writeProbePosition(x + probeWidth - (cycle.probeOvertravel - probeRadius), x - probeWidth + (cycle.probeOvertravel - probeRadius));
       writeProbeXYZPosition(p2, y, z - cycle.depth);
       writeProbeExpectedX(x, true);
-      writeBlock("o<probe_x_boss> call", formatComment("Probe X-Boss"));
+      writeProbeCall("probe_x_boss", "Probe X-Boss", cycle.width1);
 
       probeWidth = cycle.width2 / 2;
       p1 = y + probeWidth + (cycle.probeClearance + probeRadius);
@@ -1327,7 +1376,7 @@ function writeProbeCycle(cycle, x, y, z) {
       writeProbePosition(y + probeWidth - (cycle.probeOvertravel - probeRadius), y - probeWidth + (cycle.probeOvertravel - probeRadius));
       writeProbeXYZPosition(x, p2, z - cycle.depth);
       writeProbeExpectedY(y, true);
-      writeBlock("o<probe_y_boss> call", formatComment("Probe Y-Boss"));
+      writeProbeCall("probe_y_boss", "Probe Y-Boss", cycle.width2);
       break;
     case "probing-xy-rectangular-hole-with-island":
       var probeWidth = cycle.width1 / 2;
@@ -1340,7 +1389,7 @@ function writeProbeCycle(cycle, x, y, z) {
       writeProbePosition(x + probeWidth + (cycle.probeOvertravel - probeRadius), x - probeWidth - (cycle.probeOvertravel - probeRadius));
       writeProbeXYZPosition(p2, y, z - cycle.depth);
       writeProbeExpectedX(x, true);
-      writeBlock("o<probe_x_pocket> call", formatComment("Probe X-Pocket"));
+      writeProbeCall("probe_x_pocket", "Probe X-Pocket", cycle.width1);
 
       probeWidth = cycle.width2 / 2;
       p1 = y + probeWidth - (cycle.probeClearance + probeRadius);
@@ -1351,12 +1400,12 @@ function writeProbeCycle(cycle, x, y, z) {
       writeProbePosition(y + probeWidth + (cycle.probeOvertravel - probeRadius), y - probeWidth - (cycle.probeOvertravel - probeRadius));
       writeProbeXYZPosition(x, p2, z - cycle.depth);
       writeProbeExpectedY(y, true);
-      writeBlock("o<probe_y_pocket> call", formatComment("Probe Y-Pocket"));
+      writeProbeCall("probe_y_pocket", "Probe Y-Pocket", cycle.width2);
       break;
 
     case "probing-xy-inner-corner":
-      var probeExpectedX = x + approach(cycle.approach1) * (cycle.probeClearance + probeRadius * 2);
-      var probeExpectedY = y + approach(cycle.approach2) * (cycle.probeClearance + probeRadius * 2);
+      var probeExpectedX = x + approach(cycle.approach1) * (cycle.probeClearance + probeRadius); // wall position
+      var probeExpectedY = y + approach(cycle.approach2) * (cycle.probeClearance + probeRadius);
       var probeX = x + approach(cycle.approach1) * (cycle.probeClearance + cycle.probeOvertravel + probeRadius * 2);
       var probeY = y + approach(cycle.approach2) * (cycle.probeClearance + cycle.probeOvertravel + probeRadius * 2);
       protectedProbeMove(x, y, cycle.retract, PROBE_RAPID);
@@ -1366,7 +1415,7 @@ function writeProbeCycle(cycle, x, y, z) {
       writeProbeXYZPosition(x, y, z - cycle.depth);
       writeProbeExpectedX(probeExpectedX, false);
       writeProbeExpectedY(probeExpectedY, true);
-      writeBlock("o<probe_xy_corner> call", formatComment("Probe XY Inner Corner"));
+      writeProbeCall("probe_xy_corner", "Probe XY Inner Corner");
       break;
     case "probing-xy-outer-corner":
       var probeExpectedX = x + approach(cycle.approach1) * (cycle.probeClearance + probeRadius);
@@ -1384,7 +1433,7 @@ function writeProbeCycle(cycle, x, y, z) {
       writeProbeXYZPosition(px, y, z - cycle.depth);
       writeProbeExpectedX(probeExpectedX, false);
       writeProbeExpectedY(probeExpectedY, true);
-      writeBlock("o<probe_xy_corner> call", formatComment("Probe XY Outer Corner"));
+      writeProbeCall("probe_xy_corner", "Probe XY Outer Corner");
       break;
     case "probing-x-plane-angle":
       error(localize("Probing cycle '" + cycleType + "' is not supported."));
@@ -1441,6 +1490,115 @@ function writeProbeClearance(clearance) {
   writeBlock("#<_z_clearance_position> = " + xyzFormat.format(clearance));
 }
 
+/** True for WCS probing and geometry probing operations. */
+function isProbingSection(section) {
+  return section.strategy == "probe" || section.strategy == "probe_geometry";
+}
+
+/**
+  Program-start values for the probing macros, written only in programs that probe. Named parameters
+  keep their values until PathPilot restarts, so an aborted program could otherwise leave inputs set.
+*/
+function writeProbingDefaults() {
+  var probing = false;
+  for (var i = 0; i < getNumberOfSections(); ++i) {
+    if (isProbingSection(getSection(i))) {
+      probing = true;
+      break;
+    }
+  }
+  if (!probing) {
+    return;
+  }
+  writeComment("probing macro defaults");
+  writeBlock("#<_display_results> = " + (getProperty("probeShowResults") ? 1 : 0));
+  writeBlock("#<_tolerance_action> = " + parseInt(getProperty("probeToleranceAction"), 10));
+  writeBlock("#<_orient_probe> = " + (getProperty("probeOrient") ? 1 : 0));
+  writeBlock("#<_log_results> = 0");
+  writeBlock("#<_set_wcs> = 1");
+  writeBlock("#<_feature_number> = 0");
+  writeBlock("#<_nominal_size> = 0");
+  writeBlock("#<_size_tolerance_plus> = 0");
+  writeBlock("#<_size_tolerance_minus> = 0");
+  writeBlock("#<_position_tolerance> = 0");
+  writeBlock("#<_update_tool> = 0");
+  writeBlock("#<_update_feedback> = 1");
+  writeBlock("#<_update_tool_minimum> = 0");
+  writeBlock("#<_wear_pending_tool> = 0");
+  writeBlock("#<_wear_pending_diameter> = 0");
+  writeBlock("#<_wear_pending_length> = 0");
+}
+
+/**
+  Optional macro inputs from the operation's Actions settings, then the macro call.
+  nominal: feature width or diameter for size features, undefined otherwise.
+*/
+function writeProbeCall(macro, comment, nominal) {
+  var isSize = typeof nominal == "number";
+  if (isSize) {
+    writeBlock("#<_nominal_size> = " + xyzFormat.format(nominal));
+    if (cycle.wrongSizeAction == "stop-message") {
+      var sizeTolerance = cycle.toleranceSize ? cycle.toleranceSize : 0;
+      writeBlock("#<_size_tolerance_plus> = " + xyzFormat.format(sizeTolerance));
+      writeBlock("#<_size_tolerance_minus> = " + xyzFormat.format(sizeTolerance));
+    }
+  }
+  if (cycle.outOfPositionAction == "stop-message") { // true position zone, same meaning as Renishaw M
+    writeBlock("#<_position_tolerance> = " + xyzFormat.format(cycle.tolerancePosition ? cycle.tolerancePosition : 0));
+  }
+  if (cycle.angleAskewAction == "stop-message") {
+    warningOnce(localize("Askew is not checked by the PathPilot probing macros."), WARNING_ANGLE_ASKEW);
+  }
+  if (cycle.updateToolWear) {
+    var isZ = cycleType == "probing-z";
+    if (!isSize && !isZ) {
+      warning(subst(localize("Operation '%1': tool wear is only updated from a size feature or a Z face, so it is not output."),
+        getParameter("operation-comment", "")));
+    } else {
+      var wearTool = isZ ? cycle.toolLengthOffset : cycle.toolDiameterOffset;
+      validate(wearTool > 0 && wearTool != 99, subst(localize("Operation '%1': tool wear offset %2 is not a cutting tool number."),
+        getParameter("operation-comment", ""), wearTool));
+      writeBlock("#<_update_tool> = " + toolFormat.format(wearTool));
+      if (cycle.toolWearErrorCorrection > 0 && cycle.toolWearErrorCorrection < 100) {
+        writeBlock("#<_update_feedback> = " + ratioFormat.format(cycle.toolWearErrorCorrection / 100));
+      }
+      if (cycle.toolWearUpdateThreshold > 0) {
+        writeBlock("#<_update_tool_minimum> = " + xyzFormat.format(cycle.toolWearUpdateThreshold));
+      }
+      var pending = probeState.wearTools[wearTool] || {diameter:false, length:false};
+      pending[isZ ? "length" : "diameter"] = true;
+      probeState.wearTools[wearTool] = pending;
+    }
+  }
+  if (cycle.printResults) {
+    var log = (probeState.featureNumber == 0 && getProperty("probeNewResultsFile")) ? 2 : 1;
+    if (log != probeState.logResults) {
+      writeBlock("#<_log_results> = " + log);
+    }
+    probeState.logResults = 1; // the macro switches 2 to 1 after writing the header
+    probeState.featureNumber += 1;
+    writeBlock("#<_feature_number> = " + probeState.featureNumber);
+  } else if (probeState.logResults != 0) {
+    writeBlock("#<_log_results> = 0");
+    probeState.logResults = 0;
+  }
+  writeBlock("o<" + macro + "> call", formatComment(comment));
+}
+
+/** After a tool change: apply the wear correction a probing operation stored for this tool. */
+function writeApplyWear(tool) {
+  var pending = probeState.wearTools[tool.number];
+  if (!pending) {
+    return;
+  }
+  writeBlock("o<probe_apply_wear> call", formatComment("apply the probed wear correction for T" + tool.number));
+  if (pending.diameter && getParameter("operation:compensationType", "") == "computer") {
+    warning(subst(localize("T%1 gets a diameter wear correction from probing, but operation '%2' uses compensation 'In computer'. Diameter wear only acts with G41/G42 compensation."),
+      tool.number, getParameter("operation-comment", "")));
+  }
+  delete probeState.wearTools[tool.number];
+}
+
 function writeProbeWCS(updateWCS) {
   if (updateWCS) {
     if (currentSection.strategy == "probe") { // WCS probing
@@ -1454,9 +1612,9 @@ function writeProbeWCS(updateWCS) {
         currentWorkOffset = undefined;
       }
       writeBlock("#<_measuring_wcs> = " + probeOutputWorkOffset);
-    } else { // Geometry probing
-      error(localize("Geometry probing is not supported by the CNC control."));
-      // writeBlock("#<_inspect_only> = 1");
+    } else { // Geometry probing: measure and report, the work offset is not changed
+      writeBlock("#<_set_wcs> = 0");
+      writeBlock("#<_measuring_wcs> = " + (currentSection.workOffset == 0 ? 1 : currentSection.workOffset));
     }
   }
 }
