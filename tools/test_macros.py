@@ -461,6 +461,9 @@ def feature_tests():
     check('wear Z: wcs not moved', it.off[2] == G55, it.off[2])
 
     # limits and edges
+    it, err = bore(dict(tol0, _update_tool=5, _wear_pending_tool=0, _wear_pending_diameter=0.5))
+    check('pending tool 0: stale correction not added', abs(it.named['_wear_pending_diameter'] + 0.002) < 1e-9,
+          it.named['_wear_pending_diameter'])
     it, err = bore(dict(tol0, _update_tool=5, _update_tool_minimum=0.003))
     check('wear under the tool minimum: nothing pending', not it.named.get('_wear_pending_diameter'),
           it.named.get('_wear_pending_diameter'))

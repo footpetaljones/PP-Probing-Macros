@@ -318,8 +318,11 @@ o430 if [#<wear_kind> GT 0]
 		#<_wear_pending_diameter> = 0
 		#<_wear_pending_length> = 0
 	o431 endif
-	o432 if [[#<_wear_pending_tool> NE 0] AND [#<_wear_pending_tool> NE #<update_tool>]]
-		(DEBUG, pending wear correction for T#<_wear_pending_tool> was never applied - replaced)
+	o432 if [#<_wear_pending_tool> NE #<update_tool>]
+		o434 if [#<_wear_pending_tool> NE 0]
+			(DEBUG, pending wear correction for T#<_wear_pending_tool> was never applied - replaced)
+		o434 endif
+		(start from zero - a pending tool of 0 means nothing is pending)
 		#<_wear_pending_diameter> = 0
 		#<_wear_pending_length> = 0
 	o432 endif
