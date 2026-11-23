@@ -135,14 +135,15 @@ nominal (only valid when the two are the same), and no tolerance/tool feedback l
 | `#<_nominal_size>` | 0 | Expected width/diameter (size features). Enables size checks. | yes |
 | `#<_size_tolerance_plus>` / `#<_size_tolerance_minus>` | 0 | Size tolerance band (magnitudes). | yes |
 | `#<_position_tolerance>` | 0 | True position tolerance (zone diameter, Renishaw M) in the measuring WCS; checked against `_result_tp_dev`. | yes |
-| `#<_update_minimum>` | 0 | Axes whose difference is under this are not updated. | yes |
-| `#<_update_maximum>` | 0 | Any difference (position or size) over this: no update, status 4. | yes |
+| `#<_update_wcs_minimum>` | 0 | WCS axes whose difference is under this are not moved. | yes |
+| `#<_update_wcs_maximum>` | 0 | When setting the WCS: any difference (position or size) over this → WCS not moved, status 4. | yes |
+| `#<_update_tool_wear_minimum>` | 0 | Wear correction skipped when the size (or Z) difference is under this. | yes |
 | `#<_tolerance_action>` | 1 | Status > 0: 0 flag only; 1 `G90`, `G30 Z#5422`, `G30`, `M0 (feature out of tolerance)`, cycle start accepts; 2 same retract, log, then ABORT. | no |
 | `#<_orient_offset>` | 0 | (orientation step, not built yet) spindle angle K for tracking. | — |
 
 The nominal position is the existing `_x/_y/_z_wcs_offset`: the measured feature position in the measuring WCS
 before any update is compared with it. In inspect mode that is the inspection deviation; in set mode it is
-the WCS shift, so `_position_tolerance` and `_update_minimum/_maximum` act on the shift.
+the WCS shift, so `_position_tolerance` and `_update_wcs_minimum/_maximum` act on the shift.
 
 ### 4.3 Outputs (globals, readable after the call)
 
@@ -182,7 +183,7 @@ Extra inputs on the probing call (cleared after the call):
 | `#<_update_tool>` | 0 | Tool whose wear is corrected. Size features need `_nominal_size`; `probe_z` uses `_z_wcs_offset` as the face nominal and is then inspect-only for the WCS. |
 | `#<_update_feedback>` | 1 | Fraction of the error applied (0 < F ≤ 1). |
 
-`_update_minimum` / `_update_maximum` and the M0 accept step apply to wear the same way as to the WCS.
+`_update_tool_wear_minimum` holds back small corrections; the WCS limits do not apply to wear, and wear has no maximum. The M0 accept step applies to wear the same way as to the WCS.
 Corrections: internal size → diameter wear + error·F; external size → diameter wear − error·F; Z face → length wear − error·F.
 The correction is stored in inches as pending (`_wear_pending_tool`, `_wear_pending_diameter`, `_wear_pending_length`);
 a second correction for the same tool adds to it, one for another tool replaces it with a DEBUG warning.
@@ -271,7 +272,7 @@ One or two lines per feature, e.g.
 | Wireless detect | `#<_probe_wireless>` from stock PathPilot namedparams.py. |
 | Three-point | No G52 (see §7); targets computed from the start position (SIN/COS). Close vectors allowed; DEBUG warning under 15° below 3 in / 75 mm diameter, under 5° at or above. |
 | TSD scripts | One installs the new set, one restores the original set, both in `~/tmc/subroutines` (back up, write, verify). TSD scripts run under Python 2. |
-| Update limits | `_update_minimum` / `_update_maximum` apply to both position and size differences. |
+| Update limits | `_update_wcs_minimum` / `_update_wcs_maximum` gate WCS changes only (maximum: position and size differences, only when setting the WCS); `_update_tool_wear_minimum` gates wear; no wear maximum. The Fusion post does not output the WCS limits (2026-11-23). |
 | Bias / SPC | Left out. |
 | G30 retract | `G30 Z#5422` moves only Z (verified on the sim). |
 | Calibration macro | Not needed: PathPilot's probe calibration is used. |
@@ -315,6 +316,7 @@ so tracking uses `R = K − θ` (θ = probing direction, CCW from +X; K = option
 7. TSD install and restore scripts.
 8. True position tolerance (`961500b`).
 9. `probe_circular_bore_island` (`ffaa42d`).
+10. Separate WCS and tool wear limits (`87dcd89`).
 
 ### TSD scripts
 - PathPilot's copies are in `~/tmc/subroutines` (Norman); the scripts replace them there. The macros may be missing

@@ -41,8 +41,8 @@ Fusion cycle fields (same names as Autodesk's Renishaw mapping: `getProbingArgum
 | Angle askew | `angleAskewAction`, `toleranceAngle` | none (no angle macros) → post warning |
 | Update tool wear | `updateToolWear`; `toolDiameterOffset` (XY) / `toolLengthOffset` (Z) | `_update_tool` (offset number = tool number on PathPilot; validated 1–1000, not 99) |
 | Error correction % | `toolWearErrorCorrection` | `_update_feedback` = % / 100 |
-| Update threshold | `toolWearUpdateThreshold` | `_update_minimum` |
-| (no Fusion field) | — | `_update_maximum` (= Renishaw U): see decision 3 |
+| Update threshold | `toolWearUpdateThreshold` | `_update_tool_wear_minimum` |
+| (no Fusion field) | — | `_update_wcs_minimum` / `_update_wcs_maximum`: not output (decision 3) |
 | Print results | `printResults` | `_log_results = 1` (CSV); `_feature_number` = running count in the program |
 
 Post properties (new group **Probing**), written once at program start, only in programs that probe:
@@ -52,7 +52,6 @@ Post properties (new group **Probing**), written once at program start, only in 
 | Show results on Status tab | Yes | `_display_results` |
 | Out-of-tolerance action | Pause (M0) | `_tolerance_action` 1; Abort = 2; Flag only = 0 |
 | Orient wireless probe | Yes | `_orient_probe` |
-| Maximum correction (0 = none) | 0 | `_update_maximum` per call (decision 3) |
 | New results file each program | No | `_log_results = 2` on the first printed feature |
 
 ## 4. Changes, in order (one commit each)
@@ -94,7 +93,7 @@ Not changed: existing macro names, T99/H99 check, pattern/mirror checks, plane-a
 |---|---|---|
 | 1 | Position tolerance per axis or true position | **True position** (Renishaw M). Done in the macros: `_result_tp_dev` = 2·√(dx²+dy²+dz²), status 3 when over `_position_tolerance`; CSV `true_position` column. |
 | 2 | Results file | **CSV** now; Fusion-importable `RESULTS.TXT` later as its own step. |
-| 3 | Maximum correction | Open. Renishaw `U` = upper tolerance limit: over it, no tool or work offset update and the cycle stops with an alarm; applies to size and position, ± about nominal; not a clamp. That is what `_update_maximum` does. Fusion's probing actions have error correction (%) and a minimum update threshold but no maximum, and Autodesk's Renishaw mappings never output `U`. So it can only come from a post property, or be left out. |
+| 3 | Maximum correction | Limits split: `_update_wcs_minimum` / `_update_wcs_maximum` (WCS only) and `_update_tool_wear_minimum` (wear); no wear maximum. The post **does not output the WCS limits**; Fusion's tool wear update threshold → `_update_tool_wear_minimum`. (Renishaw `U`: over it, no tool or work offset update and an alarm; Fusion has no such field.) |
 | 4 | Hole with island | **Separate macro** `probe_circular_bore_island` (done, `ffaa42d`); `probe_circular_bore` unchanged. |
 | 5 | Protected positioning | **Not needed**: PathPilot treats every G1 with the probe as a protected move. |
 
