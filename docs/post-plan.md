@@ -1,6 +1,6 @@
 # tormach-probing-v2 post: plan
 
-Status: **§4 steps 1–9 implemented in `1369ca5`, not yet run in Fusion.** Decisions of 2026-11-23 in §5. Test with the probing test part (§6). `post/tormach-probing-v2.cps` is the stock Tormach PathPilot post
+Status: **§4 steps 1–9 implemented in `1369ca5`; posted from Fusion with the test part on 2026-11-23 and checked by hand (see `docs/test-part.md`). Tool wear output not yet posted.** Decisions of 2026-11-23 in §5. Test with the probing test part (§6). `post/tormach-probing-v2.cps` is the stock Tormach PathPilot post
 (revision 44229, 2026-06-12) with only the description changed (commit e68dca1).
 
 ## 1. What the stock post does for probing
@@ -37,7 +37,7 @@ Fusion cycle fields (same names as Autodesk's Renishaw mapping: `getProbingArgum
 | Geometry probing (`probe_geometry`) | `currentSection.workOffset` (0 → 1) | `_set_wcs = 0`, `_measuring_wcs` = active WCS; `_x/_y/_z_wcs_offset` = expected position (inspect only) |
 | Feature size | `width1` (`width2` for the Y half of rectangular cycles) | `_nominal_size` on every size feature (size deviation is reported; no check without a tolerance) |
 | Wrong size | `wrongSizeAction == "stop-message"`, `toleranceSize` | `_size_tolerance_plus` = `_size_tolerance_minus` = `toleranceSize` (Fusion has Size Upper/Lower and converts an asymmetric band to a symmetric one when posting) |
-| Out of position | `outOfPositionAction == "stop-message"`, `tolerancePosition` | `_position_tolerance` (true position zone, same meaning as Renishaw M; macros changed in 961500b) |
+| Out of position | `outOfPositionAction == "stop-message"`, `tolerancePosition` | `_position_tolerance` (true position zone, same meaning as Renishaw M; macros changed in 961500b). Fusion posts twice the entered value: 0.004 entered → 0.008 |
 | Angle askew | `angleAskewAction`, `toleranceAngle` | none (no angle macros) → post warning |
 | Update tool wear | `updateToolWear`; `toolDiameterOffset` (XY) / `toolLengthOffset` (Z) | `_update_tool` (offset number = tool number on PathPilot; validated 1–1000, not 99) |
 | Error correction % | `toolWearErrorCorrection` | `_update_feedback` = % / 100 |

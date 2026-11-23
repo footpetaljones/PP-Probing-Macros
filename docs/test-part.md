@@ -1,7 +1,9 @@
 # Probing test part
 
-Status: **design.** To be modeled in Fusion with one machining setup and two probing setups (inch, metric).
-Fusion did not respond on 2026-11-23, so nothing is modeled yet.
+Status: **modeled and posted.** Fusion document "Probing test part" (Tormach Projects > Probing) with setups
+Machining, Probing inch and Probing metric. All three posted with `post/tormach-probing-v2.cps` and checked by hand
+on 2026-11-23. Open: the tool wear reference operation (see Fusion notes), a simulator run of the posted
+probing programs, an on-machine run.
 
 ## Part
 
@@ -37,3 +39,24 @@ Clearances checked for a Ø4 mm (0.157 in) stylus with 0.050 in probe clearance:
 
 The post output of both probing setups is checked line by line and run through `tools/sim_macros.py`
 against a model of this part (inner corner fix, diameters, island path, tolerances, wear).
+
+## Fusion notes
+
+- **WCS probing of G55-G58** sits in folders "Update G55" ... "Update G58". The folder has Override WCS Offset =
+  the WCS to update (2-5); the operation has Override Driving WCS = 1, so the probe moves in G54. Posted:
+  `G54` moves, `#<_measuring_wcs> = 2..5`. With the part where the model puts it, the probed axes of G55-G58
+  come out equal to G54 (G55 XY, G56 X and Y, G57 XY, G58 X); that is the check for these operations. Their Z is
+  not set. The first build had it reversed (moves in G55, updates G54).
+- **Out of position tolerance is posted doubled**: 0.004 in entered gives `#<_position_tolerance> = 0.008`
+  (0.1 mm gives 0.2). Fusion passes the zone diameter in `cycle.tolerancePosition`; probe_result compares true
+  position (2 x radial deviation) against it, so the entered value is the allowed radial deviation.
+- Geometry operations use Fusion's default clearance height (retract + 50 mm), so they rapid to Z2.34 between
+  features. Harmless; not changed.
+- Fusion API: reading `probe_selection` on an `OperationInput` for a probe operation crashes Fusion
+  (CadProbe::getDraggedPointCadObject). Add the operation first, then set the selection on the operation.
+- Fusion API: `probe_operation_selection` (tool wear reference operation) cannot be set by script
+  (InternalValidationError). The two tool wear operations in each probing setup need it selected in the UI
+  (reference: "Pockets, groove and counterbore", T201); until then they have an error and are not posted.
+- Machining: outside contour is the outer loop of the top face, 0 stock to leave. Checked in the posted program:
+  path X/Y +/-2.000 (part +/-1.750 plus tool radius 0.250), Z-0.500, climb. The pocket operation stays exactly one
+  tool radius (0.125) from the three islands/bosses. The first build had the contour on the island of #3.
