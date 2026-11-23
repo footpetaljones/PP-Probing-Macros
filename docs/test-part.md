@@ -14,8 +14,8 @@ probing programs, an on-machine run.
 | # | Feature | Center (X, Y) | Size | Depth | Probing cycles it serves |
 |---|---|---|---|---|---|
 | 1 | Plain bore | 0, 0 | Ø0.500 | 0.500 | circular hole, partial circular hole (3 point) |
-| 2 | Rectangular pocket | +0.900, +0.900 | 1.250 X x 1.000 Y, R0.125 corners | 0.250 | X/Y channel, rectangular hole, inner corner, Z on the floor |
-| 3 | Rectangular pocket with island | -0.900, +0.900 | 1.250 x 1.000 pocket, 0.500 x 0.375 island flush with the top | 0.250 | channel with island, rectangular hole with island, X/Y wall and rectangular boss on the island |
+| 2 | Rectangular pocket | +0.900, +0.900 | 1.250 X x 1.000 Y, R0.200 corners | 0.250 | X/Y channel, rectangular hole, inner corner, Z on the floor |
+| 3 | Rectangular pocket with island | -0.900, +0.900 | 1.250 x 1.000 pocket, R0.200 corners, 0.500 x 0.375 island flush with the top | 0.250 | channel with island, rectangular hole with island, X/Y wall and rectangular boss on the island |
 | 4 | Bore with island (annular groove) | -0.900, -0.900 | Ø1.125 outside, Ø0.375 island flush with the top | 0.250 | circular hole with island |
 | 5 | Round boss in a counterbore | +0.900, -0.900 | Ø0.625 boss flush with the top, Ø1.250 counterbore | 0.250 | circular boss, partial circular boss (3 point) |
 | 6 | Outside | — | 3.500 x 3.500 | 0.500 | X/Y single surface, outer corner |
@@ -60,3 +60,13 @@ against a model of this part (inner corner fix, diameters, island path, toleranc
 - Machining: outside contour is the outer loop of the top face, 0 stock to leave. Checked in the posted program:
   path X/Y +/-2.000 (part +/-1.750 plus tool radius 0.250), Z-0.500, climb. The pocket operation stays exactly one
   tool radius (0.125) from the three islands/bosses. The first build had the contour on the island of #3.
+- **Pocket corners changed from R0.125 to R0.200** (2026-11-23; sketches Pocket and Pocket with island now
+  dimensioned). Fusion lost the face selections of every probe operation that touched the top face, the pockets,
+  the island or the boss, and of the pocket operation (they showed the body instead of faces, probing type
+  unknown). Reselected by script; the probing type had to be set again where Fusion picked another one
+  (inner corner, X channel, rectangular pocket, 3-point boss, channel with island, Y wall).
+- **Inner corner G57 with R0.200**: Fusion starts the corner probe clearance + r = 0.159 from each wall, which
+  is inside the 0.200 corner radius, so both touches land on the radius: about 0.006 in short in X and Y.
+  Needs a larger probe clearance in that operation (0.15 in or more) or a smaller corner radius.
+- **Pocket operation with compensation "In control: wear"** generates nothing for the three pockets with an
+  island/boss (#3, #4, #5; Fusion warning), only #2. With "In computer" all four are cut.
