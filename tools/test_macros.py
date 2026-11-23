@@ -87,6 +87,16 @@ def scenarios():
                '_z_clearance_position': w(0, 0, -7.5)[2],
                '_measuring_wcs': 2, '_x_wcs_offset': 0.0, '_y_wcs_offset': 0.0},
               {(2, 'X'): 12.0, (2, 'Y'): 6.0}))
+    island = World([Cylinder(12.0, 6.0, 0.5, True), Cylinder(12.0, 6.0, 0.2, False, ztop=-8.0)])
+    island_params = {'_diameter_to_probe': 1.2, '_diameter_to_position': 0.7,
+                     '_first_position_to_probe': w(0, 0, -8.5)[2], '_z_clearance_position': w(0, 0, -7.5)[2],
+                     '_measuring_wcs': 2, '_x_wcs_offset': 0.0, '_y_wcs_offset': 0.0}
+    for start in ((12.03, 5.98, -7.5), (11.96, 6.04, -7.0)):
+        s.append(('circular_bore_island %.2f %.2f' % start[:2], 'probe_circular_bore_island', island, start,
+                  island_params, {(2, 'X'): 12.0, (2, 'Y'): 6.0}))
+    s.append(('circular_bore on an island', 'probe_circular_bore', island, (12.03, 5.98, -8.5),
+              {'_diameter_to_probe': 1.2, '_measuring_wcs': 2, '_x_wcs_offset': 0.0, '_y_wcs_offset': 0.0},
+              {(2, 'X'): 12.0, (2, 'Y'): 6.0}))
     for vec in ((0, 120, 240), (30, 150, 270), (90, 200, 330)):
         s.append(('bore_three_point %s' % (vec,), 'probe_bore_three_point',
                   World([Cylinder(12.0, 6.0, 0.5, True)]), (12.03, 5.98, -8.5),
@@ -355,6 +365,32 @@ def feature_tests():
     check('true position bore: logged', it.logfile and abs(float(it.logfile[-1].split(',')[16]) -
           it.named['_result_tp_dev']) < 1e-6, it.logfile[-1] if it.logfile else None)
 
+    # bore with an island
+    island = World([Cylinder(12.0, 6.0, 0.5, True), Cylinder(12.0, 6.0, 0.2, False, ztop=-8.0)])
+    ip = {'_diameter_to_probe': 1.2, '_diameter_to_position': 0.7, '_first_position_to_probe': w(0, 0, -8.5)[2],
+          '_z_clearance_position': w(0, 0, -7.5)[2], '_measuring_wcs': 2, '_x_wcs_offset': 9.0,
+          '_y_wcs_offset': 3.0, '_nominal_size': 1.0, '_set_wcs': 0, '_log_results': 1, '_feature_number': 4}
+    it, err = run_feature('probe_circular_bore_island', island, (12.03, 5.98, -7.5), ip)
+    check('island: no error, no collision', err is None and not it.collisions, (err, it.collisions))
+    check('island: center and diameter', abs(it.named['_result_x_dev']) < 1e-9 and
+          abs(it.named['_result_y_dev']) < 1e-9 and abs(it.named['_result_size'] - 1.0) < 1e-9,
+          (it.named.get('_result_x_dev'), it.named.get('_result_y_dev'), it.named.get('_result_size')))
+    check('island: every XY move between walls at the clearance height',
+          all(round(b[1][2], 6) == -7.5 for a, b in zip(it.trace, it.trace[1:])
+              if b[0] == 'G1' and a[0] == 'G1' and (a[1][0], a[1][1]) != (b[1][0], b[1][1])), it.trace)
+    check('island: ends above the center', it.M[2] == -7.5 and abs(it.M[0] - 12.0) < 1e-9 and
+          abs(it.M[1] - 6.0) < 1e-9, it.M)
+    check('island: logged under its own name', it.logfile and ',probe_circular_bore_island,' in it.logfile[-1],
+          it.logfile[-1] if it.logfile else None)
+    for name, change, words in (('no position diameter', {'_diameter_to_position': 0}, 'set _diameter_to_position'),
+                                ('position diameter over probe diameter', {'_diameter_to_position': 1.3},
+                                 'must be smaller than _diameter_to_probe'),
+                                ('probing Z above clearance', {'_first_position_to_probe': w(0, 0, -7.0)[2]},
+                                 'must be below _z_clearance_position')):
+        it, err = run_feature('probe_circular_bore_island', island, (12.03, 5.98, -7.5), dict(ip, **change))
+        check('island abort, %s: before any motion' % name, err and words in err and
+              not [t for t in it.trace if t[0] in ('G0', 'G1', 'G38.2', 'G38.6')], (err, it.trace[:3]))
+
     # logging: new file with header, then append
     it, err = bore({'_log_results': 2, '_feature_number': 7})
     check('log 2: header + 1 row', len(it.logfile) == 2 and it.logfile[0].startswith('epoch,'), it.logfile)
@@ -466,6 +502,13 @@ def feature_tests():
                           {'_diameter_to_probe': 1.2, '_measuring_wcs': 2, '_x_wcs_offset': 9.0,
                            '_y_wcs_offset': 3.0}, wireless=1)
     check('orient circular bore +X -X +Y -Y: R0 180 270 90', m19(it) == [0, 180, 270, 90], m19(it))
+    it, err = run_feature('probe_circular_bore_island',
+                          World([Cylinder(12.0, 6.0, 0.5, True), Cylinder(12.0, 6.0, 0.2, False, ztop=-8.0)]),
+                          (12.03, 5.98, -7.5),
+                          {'_diameter_to_probe': 1.2, '_diameter_to_position': 0.7,
+                           '_first_position_to_probe': w(0, 0, -8.5)[2], '_z_clearance_position': w(0, 0, -7.5)[2],
+                           '_measuring_wcs': 2, '_x_wcs_offset': 9.0, '_y_wcs_offset': 3.0}, wireless=1)
+    check('orient circular bore island: R0 180 270 90', m19(it) == [0, 180, 270, 90], m19(it))
     it, err = run_feature('probe_circular_boss', World([Cylinder(12.0, 6.0, 0.5, False, ztop=-8.0)]),
                           (12.02, 6.01, -7.5),
                           {'_diameter_to_position': 1.5, '_first_position_to_probe': w(0, 0, -8.5)[2],

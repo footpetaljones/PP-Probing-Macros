@@ -5,7 +5,7 @@ o<probe_result> sub
 (arguments: #1 macro code, #2 has X, #3 has Y, #4 has Z, #5 X, #6 Y, #7 Z - feature in the positioning wcs)
 (#8 measured size, #9 size type: 0 none, 1 internal - bore or pocket, 2 external - boss)
 (macro codes: 1 z, 2 x_edge, 3 y_edge, 4 xy_corner, 5 x_pocket, 6 y_pocket, 7 x_boss, 8 y_boss)
-(9 circular_bore, 10 circular_boss, 11 bore_three_point, 12 boss_three_point)
+(9 circular_bore, 10 circular_boss, 11 bore_three_point, 12 boss_three_point, 13 circular_bore_island)
 (wear corrections for cut-measure-cut are stored as pending and written by probe_apply_wear)
 
 #<macro> = #1
@@ -231,6 +231,9 @@ o200 if [#<display> EQ 1]
 	o222 if [#<macro> EQ 12]
 		(DEBUG, probe_boss_three_point  feature #<feature_number>  G54.1 P#<_measuring_wcs>)
 	o222 endif
+	o223 if [#<macro> EQ 13]
+		(DEBUG, probe_circular_bore_island  feature #<feature_number>  G54.1 P#<_measuring_wcs>)
+	o223 endif
 o200 endif
 
 (out of tolerance: 0 flag only, 1 retract to G30 and pause, 2 retract to G30 and abort after logging)
@@ -425,6 +428,9 @@ o510 if [#<log> GT 0]
 	o532 if [#<macro> EQ 12]
 		(LOG,#<t>,#<fn>,probe_boss_three_point,#<w>,#<sw>,#<up>,#<st>,#<xn>,#<xm>,#<xd>,#<yn>,#<ym>,#<yd>,,,,#<tp>,#<sn>,#<sm>,#<sd>,#<ut>,#<wc>)
 	o532 endif
+	o533 if [#<macro> EQ 13]
+		(LOG,#<t>,#<fn>,probe_circular_bore_island,#<w>,#<sw>,#<up>,#<st>,#<xn>,#<xm>,#<xd>,#<yn>,#<ym>,#<yd>,,,,#<tp>,#<sn>,#<sm>,#<sd>,#<ut>,#<wc>)
+	o533 endif
 	(LOGCLOSE)
 o510 endif
 
