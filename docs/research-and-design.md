@@ -1,7 +1,7 @@
 # CAM Driven Probing — Research Findings and Design Proposal
 
-Status: **in progress.** Branch `macro-update-2026-11`: baseline, style cleanup, three-point fix and
-trip-point accuracy are committed (see §7). New features not started.
+Status: **in progress.** Branch `macro-update-2026-11`: macros with the new features, TSD scripts and the
+renamed post are committed (see §7). Post changes: `docs/post-plan.md`.
 
 ---
 
@@ -246,7 +246,7 @@ One or two lines per feature, e.g.
    ("no surface within travel") or flag-only for unattended runs.
 3. **Edge skew / WCS rotation** — two touches on one edge → angle → `G10 L2 R`; optional abort if over a limit.
 4. **Rectangular boss/pocket in one call** (X and Y), and **angled single surface / angled web**.
-5. **Circular bore with obstacle** (implement what the article already describes).
+5. **Circular bore with obstacle** (implement what the article already describes) — approved 2026-11-23; how island mode is selected is open (`docs/post-plan.md` §5).
 6. **Auto-repeat** for three-point routines (re-probe once from the found center).
 7. ~~Bias (experience) value~~ — declined.
 8. ~~SPC averaging~~ — declined.
@@ -310,7 +310,11 @@ so tracking uses `R = K − θ` (θ = probing direction, CCW from +X; K = option
 3. Three-point fix — Cartesian targets, X/Y start return, circumcenter, 20° spacing check, trip coordinates.
 4. Trip-point accuracy — all touches from #5061–#5063; edge/corner/Z `G10 L20` corrected for overtravel.
 5. Decisions/findings recorded in this doc.
-6. Three-point spacing warning; `probe_z_for_position### TSD scripts
+6. Three-point spacing warning; `probe_z_for_position` and `probe_level_a_axis` fixes; `machine_tests/wear_offset_units.nc`.
+7. TSD install and restore scripts.
+8. True position tolerance (`961500b`).
+
+### TSD scripts
 - PathPilot's copies are in `~/tmc/subroutines` (Norman); the scripts replace them there. The macros may be missing
   on some machines; they are then added. PathPilot TSD scripts run under Python 2.
 - `tools/build_tsd.py` generates both from the repo, each macro embedded with its SHA-256; rebuild and commit
@@ -329,7 +333,6 @@ so tracking uses `R = K − θ` (θ = probing direction, CCW from +X; K = option
   backups, shadowing, path forms, refusals). `--python` runs the scripts under another interpreter; no Python 2 was
   available here, so 2.7 compatibility was checked statically (vermin: minimum 2.7 / 3.0).
 
- `tools/test_tsd.py` runs it against stub PathPilot modules: 19 checks.
 
 ### Tools
 - `tools/check_macros.py` — static checks (o-word pairing, brackets, malformed parameters, un-bracketed math, `GG`).
