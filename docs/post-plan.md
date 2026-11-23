@@ -1,6 +1,6 @@
 # tormach-probing-v2 post: plan
 
-Status: **plan, not started.** `post/tormach-probing-v2.cps` is the stock Tormach PathPilot post
+Status: **plan; post changes not started.** Decisions of 2026-11-23 in §5. `post/tormach-probing-v2.cps` is the stock Tormach PathPilot post
 (revision 44229, 2026-06-12) with only the description changed (commit e68dca1).
 
 ## 1. What the stock post does for probing
@@ -18,8 +18,8 @@ Status: **plan, not started.** `post/tormach-probing-v2.cps` is the stock Tormac
 
 | Area | What it does | For v2 |
 |---|---|---|
-| Results | Fusion-importable `RESULTS.TXT`: the post writes `START`, `RESULTSFILE`, `DOCUMENTID`, `MODELVERSION`, `TIMESTAMP`, and per toolpath `TOOLPATHID`, `TOOLPATH`, `G331` (CAD transform), `G330` (work plane), `CYCLEDEPTH`, component/feature header; the macros write `SIZE` / `POSN` lines; `END` at batch end. Enabled by Fusion's **Print results**. | Decision 2. |
-| Batch | Results file persists across programs (component counter); a post property closes the batch with `END`. MDI reset needed after an abort. | Only with decision 2. |
+| Results | Fusion-importable `RESULTS.TXT`: the post writes `START`, `RESULTSFILE`, `DOCUMENTID`, `MODELVERSION`, `TIMESTAMP`, and per toolpath `TOOLPATHID`, `TOOLPATH`, `G331` (CAD transform), `G330` (work plane), `CYCLEDEPTH`, component/feature header; the macros write `SIZE` / `POSN` lines; `END` at batch end. Enabled by Fusion's **Print results**. | Later, as its own step (decision 2). |
+| Batch | Results file persists across programs (component counter); a post property closes the batch with `END`. MDI reset needed after an abort. | With the Fusion format, later. |
 | Nominal size | `#<_FeatureLength>` / `#<_FeatureWidth>` from `cycle.width1/2`. | Same idea, as `_nominal_size`. |
 | WCS change | `_dont_change_WCS` by manual passthrough. | Ours: `_set_wcs`, set from geometry probing. |
 | Tolerances / tool wear | Not used. | Planned (§3). |
@@ -36,13 +36,13 @@ Fusion cycle fields (same names as Autodesk's Renishaw mapping: `getProbingArgum
 | WCS probing (`operation-strategy` = `probe`) | `currentSection.probeWorkOffset` | `_measuring_wcs` (as now); `_set_wcs` left at default 1 |
 | Geometry probing (`probe_geometry`) | `currentSection.workOffset` (0 → 1) | `_set_wcs = 0`, `_measuring_wcs` = active WCS; `_x/_y/_z_wcs_offset` = expected position (inspect only) |
 | Feature size | `width1` (`width2` for the Y half of rectangular cycles) | `_nominal_size` on every size feature (size deviation is reported; no check without a tolerance) |
-| Wrong size | `wrongSizeAction == "stop-message"`, `toleranceSize` | `_size_tolerance_plus` = `_size_tolerance_minus` = `toleranceSize` |
-| Out of position | `outOfPositionAction == "stop-message"`, `tolerancePosition` | `_position_tolerance` (see decision 1) |
+| Wrong size | `wrongSizeAction == "stop-message"`, `toleranceSize` | `_size_tolerance_plus` = `_size_tolerance_minus` = `toleranceSize` (Fusion has Size Upper/Lower and converts an asymmetric band to a symmetric one when posting) |
+| Out of position | `outOfPositionAction == "stop-message"`, `tolerancePosition` | `_position_tolerance` (true position zone, same meaning as Renishaw M; macros changed in 961500b) |
 | Angle askew | `angleAskewAction`, `toleranceAngle` | none (no angle macros) → post warning |
 | Update tool wear | `updateToolWear`; `toolDiameterOffset` (XY) / `toolLengthOffset` (Z) | `_update_tool` (offset number = tool number on PathPilot; validated 1–1000, not 99) |
 | Error correction % | `toolWearErrorCorrection` | `_update_feedback` = % / 100 |
 | Update threshold | `toolWearUpdateThreshold` | `_update_minimum` |
-| (no Fusion field) | — | `_update_maximum`: post property, see decision 3 |
+| (no Fusion field) | — | `_update_maximum` (= Renishaw U): see decision 3 |
 | Print results | `printResults` | `_log_results = 1` (CSV); `_feature_number` = running count in the program |
 
 Post properties (new group **Probing**), written once at program start, only in programs that probe:
@@ -74,24 +74,39 @@ Post properties (new group **Probing**), written once at program start, only in 
 6. **Inner corner fix**: expected corner = start + approach·(clearance + r), as in Autodesk's generic posts
    and the AudacityMicro post. The stock 2r assigns the WCS one probe radius off (the macro sets the
    probed wall to `_x/_y_wcs_offset`). Verify on the sim before changing.
-7. **Circular hole with island**: the stock post feeds Z down at the hole center (onto the island) and
-   `probe_circular_bore` ignores `_z_clearance_position` → stop with an error (decision 4).
-8. **Angle askew** checked in Fusion → warning that it is not checked.
+7. **Circular hole with island**: the stock post feeds Z down at the hole center, onto the island. Island
+   support is being added to the bore probing (decision 4); the post then positions above the center at the
+   clearance height and writes `_first_position_to_probe` (probing Z).
+8. **No-island clearance height**: for channels and holes without an island the stock post writes
+   `_z_clearance_position = 0`. The pocket macros retract to it between walls, so with Z0 below the probing
+   depth the probe drives down toward Z0 (stopped by the G1 probe protection). The original article says to
+   use the probing Z when there is no obstacle → write `z - cycle.depth`.
+9. **Angle askew** checked in Fusion → warning that it is not checked.
 
 Not changed: macro names, T99/H99 check, pattern/mirror checks, plane-angle cycles rejected.
 
-## 5. Decisions needed
+## 5. Decisions
 
-1. **Position tolerance**: Fusion's field follows Renishaw `M` (true position). Macros today check each axis
-   against ± tolerance. Keep per axis, or switch XY features to true position (`_result_tp_dev` already exists)?
-2. **Results file**: CSV only (as now), or also Fusion-importable `RESULTS.TXT`? The Fusion format needs post
-   header lines plus a new log mode in `probe_result`; suggested as a later step.
-3. **Maximum correction**: a post property (applies to every probing op in the program), or leave unset?
-4. **Hole with island**: error in the post, or add island support to `probe_circular_bore` (the KB article
-   already describes it)?
-5. **Protected positioning** (proposal): `protectedProbeMove()` is a plain `G1`. A `G38.3` move followed by
-   `#5070` (1 = probe tripped) → abort "probe hit something while positioning" would stop on an unexpected
-   contact. Would need a small macro (`o<probe_protected_move>`).
+| # | Question | Decision (2026-11-23) |
+|---|---|---|
+| 1 | Position tolerance per axis or true position | **True position** (Renishaw M). Done in the macros: `_result_tp_dev` = 2·√(dx²+dy²+dz²), status 3 when over `_position_tolerance`; CSV `true_position` column. |
+| 2 | Results file | **CSV** now; Fusion-importable `RESULTS.TXT` later as its own step. |
+| 3 | Maximum correction | Open. Renishaw `U` = upper tolerance limit: over it, no tool or work offset update and the cycle stops with an alarm; applies to size and position, ± about nominal; not a clamp. That is what `_update_maximum` does. Fusion's probing actions have error correction (%) and a minimum update threshold but no maximum, and Autodesk's Renishaw mappings never output `U`. So it can only come from a post property, or be left out. |
+| 4 | Hole with island | **Add island support** to the bore probing. How island mode is selected is open (see below). |
+| 5 | Protected positioning | **Not needed**: PathPilot treats every G1 with the probe as a protected move. |
+
+Island mode selection (decision 4, open):
+- The original article's rule (`_diameter_to_position` = 0 means no obstacle) cannot be used: the stock post writes a
+  non-zero `_diameter_to_position` and `_z_clearance_position = 0` for every bore and never writes
+  `_first_position_to_probe`, so stock-posted programs would take the island path with a stale probing Z.
+- A global switch (`#<_island> = 1`) cleared after each call is left set if a program aborts inside the macro; the
+  next plain bore call from an older program would then run island moves.
+- A call argument (`o<probe_circular_bore> call [1]`) does not persist, but LinuxCNC passes the caller's #1 when no
+  argument is given.
+- A separate macro (`o<probe_circular_bore_island>`) has none of these problems. Inputs: `_diameter_to_probe`,
+  `_diameter_to_position`, `_z_clearance_position`, `_first_position_to_probe` (probing Z) - the set the original
+  article listed for a bore with an obstacle, and the same as `probe_circular_boss`. Start above the bore center at
+  the clearance height. **Recommended.**
 
 ## 6. Testing
 

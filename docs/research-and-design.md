@@ -134,7 +134,7 @@ nominal (only valid when the two are the same), and no tolerance/tool feedback l
 | `#<_feature_number>` | 0 | Tag shown in DEBUG and written to the log. | yes |
 | `#<_nominal_size>` | 0 | Expected width/diameter (size features). Enables size checks. | yes |
 | `#<_size_tolerance_plus>` / `#<_size_tolerance_minus>` | 0 | Size tolerance band (magnitudes). | yes |
-| `#<_position_tolerance>` | 0 | ± per-axis position tolerance in the measuring WCS. | yes |
+| `#<_position_tolerance>` | 0 | True position tolerance (zone diameter, Renishaw M) in the measuring WCS; checked against `_result_tp_dev`. | yes |
 | `#<_update_minimum>` | 0 | Axes whose difference is under this are not updated. | yes |
 | `#<_update_maximum>` | 0 | Any difference (position or size) over this: no update, status 4. | yes |
 | `#<_tolerance_action>` | 1 | Status > 0: 0 flag only; 1 `G90`, `G30 Z#5422`, `G30`, `M0 (feature out of tolerance)`, cycle start accepts; 2 same retract, log, then ABORT. | no |
@@ -151,7 +151,7 @@ the WCS shift, so `_position_tolerance` and `_update_minimum/_maximum` act on th
 | `#<_result_x>` `#<_result_y>` `#<_result_z>` | Feature position in the measuring WCS before any update. |
 | `#<_result_x_dev>` `_y_dev` `_z_dev` | Measured − nominal. |
 | `#<_result_size>` / `#<_result_size_dev>` | Width or diameter / measured − nominal size (0 if no nominal). |
-| `#<_result_tp_dev>` | True-position deviation, 2·√(dx²+dy²). |
+| `#<_result_tp_dev>` | True-position deviation, 2·√(dx²+dy²+dz²); unmeasured axes are 0, so a single-axis feature gives 2·\|dev\|. |
 | `#<_result_status>` | 0 ok, 1 size out – material left (rework), 2 size out – material missing (scrap), 3 position out, 4 over update maximum. Priority 4 > 2 > 3 > 1. |
 | `#<_result_size_status>` / `#<_result_position_status>` | Individual flags (0/1/2 and 0/1). |
 | `#<_result_wcs_set>` | 1 if any axis of the WCS was updated. |
@@ -171,7 +171,7 @@ Sizes: pocket/boss width from the two touches ± tip diameter; circular bore/bos
    `G10 L20 P#<_measuring_wcs> X[#5420 + translation − dev]` works from any position, including after the G30 retract.
 7. DEBUG line with the WCS outcome; CSV row; clear per-feature inputs; ABORT if action 2.
 
-CSV columns: `epoch,feature,macro,wcs,set_wcs,wcs_updated,status,x_nominal,x,x_dev,y_nominal,y,y_dev,z_nominal,z,z_dev,size_nominal,size,size_dev`
+CSV columns: `epoch,feature,macro,wcs,set_wcs,wcs_updated,status,x_nominal,x,x_dev,y_nominal,y,y_dev,z_nominal,z,z_dev,true_position,size_nominal,size,size_dev,update_tool,wear_correction`
 (unused axes are empty; values print with 6 decimals; epoch from `#<_epochtime>`).
 
 ### 4.5 Cut-measure-cut (implemented)
@@ -265,7 +265,9 @@ One or two lines per feature, e.g.
 | Out of tolerance default | Pause: DEBUG with the numbers, `G90`, retract via G30, `M0 (feature out of tolerance)`. |
 | Trip point | Approved; done. |
 | Retracts | Keep G91/G90 pairs, tidied; done. |
-| Log | CSV, one line per feature (Audacity's Fusion format needs a post; revisit with our post). |
+| Log | CSV, one line per feature. Fusion-importable results format later, as its own step (2026-11-23). |
+| Position tolerance | True position (Renishaw M): status 3 when `_result_tp_dev` > `_position_tolerance` (2026-11-23). |
+| Protected moves | Not needed: PathPilot treats every G1 with the probe as a protected move (2026-11-23). |
 | Wireless detect | `#<_probe_wireless>` from stock PathPilot namedparams.py. |
 | Three-point | No G52 (see §7); targets computed from the start position (SIN/COS). Close vectors allowed; DEBUG warning under 15° below 3 in / 75 mm diameter, under 5° at or above. |
 | TSD scripts | One installs the new set, one restores the original set, both in `~/tmc/subroutines` (back up, write, verify). TSD scripts run under Python 2. |
@@ -275,7 +277,7 @@ One or two lines per feature, e.g.
 | Calibration macro | Not needed: PathPilot's probe calibration is used. |
 | M19 capability check | Not needed: only machines with spindle orientation can be set to a wireless probe. |
 | KB article | Rewrite after the macros are final. |
-| Post | A Fusion post that uses the new inputs comes later. |
+| Post | `post/tormach-probing-v2.cps`; plan in `docs/post-plan.md`. |
 
 ## 7. Findings and work since the proposal
 
