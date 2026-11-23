@@ -246,7 +246,7 @@ One or two lines per feature, e.g.
    ("no surface within travel") or flag-only for unattended runs.
 3. **Edge skew / WCS rotation** — two touches on one edge → angle → `G10 L2 R`; optional abort if over a limit.
 4. **Rectangular boss/pocket in one call** (X and Y), and **angled single surface / angled web**.
-5. **Circular bore with obstacle** (implement what the article already describes) — approved 2026-11-23; how island mode is selected is open (`docs/post-plan.md` §5).
+5. **Circular bore with obstacle** — done as a separate macro, `probe_circular_bore_island` (2026-11-23).
 6. **Auto-repeat** for three-point routines (re-probe once from the found center).
 7. ~~Bias (experience) value~~ — declined.
 8. ~~SPC averaging~~ — declined.
@@ -278,6 +278,7 @@ One or two lines per feature, e.g.
 | M19 capability check | Not needed: only machines with spindle orientation can be set to a wireless probe. |
 | KB article | Rewrite after the macros are final. |
 | Post | `post/tormach-probing-v2.cps`; plan in `docs/post-plan.md`. |
+| Bore with island | Separate macro `probe_circular_bore_island`, so `probe_circular_bore` and its inputs are unchanged (2026-11-23). |
 
 ## 7. Findings and work since the proposal
 
@@ -313,15 +314,17 @@ so tracking uses `R = K − θ` (θ = probing direction, CCW from +X; K = option
 6. Three-point spacing warning; `probe_z_for_position` and `probe_level_a_axis` fixes; `machine_tests/wear_offset_units.nc`.
 7. TSD install and restore scripts.
 8. True position tolerance (`961500b`).
+9. `probe_circular_bore_island` (`ffaa42d`).
 
 ### TSD scripts
 - PathPilot's copies are in `~/tmc/subroutines` (Norman); the scripts replace them there. The macros may be missing
   on some machines; they are then added. PathPilot TSD scripts run under Python 2.
 - `tools/build_tsd.py` generates both from the repo, each macro embedded with its SHA-256; rebuild and commit
   whenever a macro changes:
-  - `tsd/install_probing_macros.py`: every `probe_*.nc` in the repo (16 files); removes `probe_z_for_position.nc`.
-  - `tsd/restore_original_probing_macros.py`: the 14 macros of the baseline commit `9fe40cb`; removes
-    `probe_result.nc`, `probe_orient.nc`, `probe_apply_wear.nc`.
+  - `tsd/install_probing_macros.py`: every `probe_*.nc` in the repo (17 files); removes `probe_z_for_position.nc`.
+  - `tsd/restore_original_probing_macros.py`: the 14 macros of the baseline commit `9fe40cb`; removes the files
+    the original set does not have (`probe_result.nc`, `probe_orient.nc`, `probe_apply_wear.nc`,
+    `probe_circular_bore_island.nc`).
 - On the machine each: refuses while a program runs, if `~/tmc/subroutines` is missing or read-only, or if an
   embedded copy is damaged; copies every file it replaces or removes to
   `~/gcode/probing_macros_backup_<date>_<time>[_n]/` (reachable from the File tab); writes through a temporary

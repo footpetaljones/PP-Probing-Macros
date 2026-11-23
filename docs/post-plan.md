@@ -74,16 +74,19 @@ Post properties (new group **Probing**), written once at program start, only in 
 6. **Inner corner fix**: expected corner = start + approach·(clearance + r), as in Autodesk's generic posts
    and the AudacityMicro post. The stock 2r assigns the WCS one probe radius off (the macro sets the
    probed wall to `_x/_y_wcs_offset`). Verify on the sim before changing.
-7. **Circular hole with island**: the stock post feeds Z down at the hole center, onto the island. Island
-   support is being added to the bore probing (decision 4); the post then positions above the center at the
-   clearance height and writes `_first_position_to_probe` (probing Z).
+7. **Circular hole with island** → `o<probe_circular_bore_island> call` (the stock post feeds Z down at the hole
+   center, onto the island). Position above the center at `cycle.retract` only (no feed down), write
+   `_first_position_to_probe` = `z - cycle.depth`, `_z_clearance_position` = `cycle.retract`.
+   Check the `_diameter_to_*` formulas while there: the stock post mixes radial terms into diameters
+   (`width1 - (probeClearance + r)`, `width1 + (probeOvertravel - r)`); a position circle `probeClearance` from the
+   wall is `width1 - 2·(probeClearance + r)`.
 8. **No-island clearance height**: for channels and holes without an island the stock post writes
    `_z_clearance_position = 0`. The pocket macros retract to it between walls, so with Z0 below the probing
    depth the probe drives down toward Z0 (stopped by the G1 probe protection). The original article says to
    use the probing Z when there is no obstacle → write `z - cycle.depth`.
 9. **Angle askew** checked in Fusion → warning that it is not checked.
 
-Not changed: macro names, T99/H99 check, pattern/mirror checks, plane-angle cycles rejected.
+Not changed: existing macro names, T99/H99 check, pattern/mirror checks, plane-angle cycles rejected.
 
 ## 5. Decisions
 
@@ -92,10 +95,10 @@ Not changed: macro names, T99/H99 check, pattern/mirror checks, plane-angle cycl
 | 1 | Position tolerance per axis or true position | **True position** (Renishaw M). Done in the macros: `_result_tp_dev` = 2·√(dx²+dy²+dz²), status 3 when over `_position_tolerance`; CSV `true_position` column. |
 | 2 | Results file | **CSV** now; Fusion-importable `RESULTS.TXT` later as its own step. |
 | 3 | Maximum correction | Open. Renishaw `U` = upper tolerance limit: over it, no tool or work offset update and the cycle stops with an alarm; applies to size and position, ± about nominal; not a clamp. That is what `_update_maximum` does. Fusion's probing actions have error correction (%) and a minimum update threshold but no maximum, and Autodesk's Renishaw mappings never output `U`. So it can only come from a post property, or be left out. |
-| 4 | Hole with island | **Add island support** to the bore probing. How island mode is selected is open (see below). |
+| 4 | Hole with island | **Separate macro** `probe_circular_bore_island` (done, `ffaa42d`); `probe_circular_bore` unchanged. |
 | 5 | Protected positioning | **Not needed**: PathPilot treats every G1 with the probe as a protected move. |
 
-Island mode selection (decision 4, open):
+Why a separate macro (decision 4):
 - The original article's rule (`_diameter_to_position` = 0 means no obstacle) cannot be used: the stock post writes a
   non-zero `_diameter_to_position` and `_z_clearance_position = 0` for every bore and never writes
   `_first_position_to_probe`, so stock-posted programs would take the island path with a stale probing Z.
@@ -106,7 +109,7 @@ Island mode selection (decision 4, open):
 - A separate macro (`o<probe_circular_bore_island>`) has none of these problems. Inputs: `_diameter_to_probe`,
   `_diameter_to_position`, `_z_clearance_position`, `_first_position_to_probe` (probing Z) - the set the original
   article listed for a bore with an obstacle, and the same as `probe_circular_boss`. Start above the bore center at
-  the clearance height. **Recommended.**
+  the clearance height. **Chosen.**
 
 ## 6. Testing
 

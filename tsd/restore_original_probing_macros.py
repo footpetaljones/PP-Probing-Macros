@@ -11,7 +11,7 @@ What it does
   2. Saves the current copy of every file it replaces or removes in
      ~/gcode/probing_macros_backup_<date>_<time>/
   3. Writes the 14 macro files and checks each one byte for byte.
-  4. Removes probe_apply_wear.nc, probe_orient.nc, probe_result.nc if present (a copy is in the backup folder).
+  4. Removes probe_apply_wear.nc, probe_circular_bore_island.nc, probe_orient.nc, probe_result.nc if present (a copy is in the backup folder).
   5. Warns if PathPilot's SUBROUTINE_PATH would find another copy of a macro first.
 """
 import hashlib
@@ -53,39 +53,40 @@ TARGET_DIR = os.path.expanduser("~/tmc/subroutines")
 BACKUP_PARENT = os.path.expanduser("~/gcode")
 
 # Not part of this set: moved to the backup folder if present
-REMOVE = ['probe_apply_wear.nc', 'probe_orient.nc', 'probe_result.nc']
+REMOVE = ['probe_apply_wear.nc', 'probe_circular_bore_island.nc', 'probe_orient.nc', 'probe_result.nc']
 
 # Versions this script recognises, for the log (sha256: label)
 KNOWN = {
-    "00105e47fe9049e4ddb91d3bc86f2139fab7de4faa1f0fb3caeb17b709d5ee22": "new version 961500b",
-    "0c648772be71d1c3c0bf6538412500b286e43929fa0f0c269516d6dba481c52b": "new version 961500b",
-    "100be9bf9ddbdacce7cf1fdc924d52d0988604bc4f2a9bfc988554b179be91dd": "new version 961500b",
+    "00105e47fe9049e4ddb91d3bc86f2139fab7de4faa1f0fb3caeb17b709d5ee22": "new version ffaa42d",
+    "0c648772be71d1c3c0bf6538412500b286e43929fa0f0c269516d6dba481c52b": "new version ffaa42d",
+    "100be9bf9ddbdacce7cf1fdc924d52d0988604bc4f2a9bfc988554b179be91dd": "new version ffaa42d",
     "1570a916d9aed4d809f94a6fda7f8aeeee1e44538e8f6471f49f1e35325886fb": "original",
-    "1f9ae55c5e751350df56a657f3b3e595ecbce52e77f48e3dc8a83905d712627d": "new version 961500b",
+    "1f9ae55c5e751350df56a657f3b3e595ecbce52e77f48e3dc8a83905d712627d": "new version ffaa42d",
     "270ee6dac02e8a41b58357961c4eb9a6333181186ea5eb02150bdc514060a6e6": "original",
     "320351e86890271677c7b0f8cace0980df2d681b794cd4f2bf053b9fe2482625": "original",
-    "3693785e830e3b0c54f165b2b22361f5faa6ed610c2e01c707d4efd9552db0b7": "new version 961500b",
-    "36a073f9481972ff9ac962f7c8600b833cfde64daae705bbce2fb6d5ea7c3edd": "new version 961500b",
+    "36a073f9481972ff9ac962f7c8600b833cfde64daae705bbce2fb6d5ea7c3edd": "new version ffaa42d",
     "3ce94c7122d2e10a2fa11316013fef64dc7d72854f1efdb3146bee8fcea2bc20": "original",
     "4d28cacba1e9f668be563720073aa874edd72afa119ffac0638742c2e986ae08": "original",
     "51cef25413cbffc86676c1e62f8e3d39564d52bbab5c53d8fac2de5be05e302a": "original",
     "586305a6d45851df45eefb2537eec42e353f2a2c81b79ecdf4d694222490a4d3": "original",
-    "5db658dce90ce6be06e2cb1efa6b400d2f988e8fdc74c4985ad5970e5d62577e": "new version 961500b",
-    "6251745e037a24d19092065ccdb50b7c29df9ed064ee81384afd40dffe26d1bc": "new version 961500b",
+    "5db658dce90ce6be06e2cb1efa6b400d2f988e8fdc74c4985ad5970e5d62577e": "new version ffaa42d",
+    "6251745e037a24d19092065ccdb50b7c29df9ed064ee81384afd40dffe26d1bc": "new version ffaa42d",
     "6e26aa2d27d55ca6d4230abf10f112bc7bd1aad72175bb1366df92936f613e9c": "original",
     "8de9f5cfe7b517acc2c3405208d300998e9049ac403ae47b2ce86fd19a4100f1": "original",
-    "8f47d79fe4f69f0b0e4abda4c195aeec5159f18934b97599136ed957466cfb02": "new version 961500b",
+    "8f47d79fe4f69f0b0e4abda4c195aeec5159f18934b97599136ed957466cfb02": "new version ffaa42d",
     "91691daede98ac5c846bfbd6ff7340dec6cda9bf4fbb6beebf8b6dc43206d31b": "original",
+    "9ae4dd6ee62ff6caf50a8b05464b55a0ab9d2756989cf8a879addae9344f0f6d": "new version ffaa42d",
     "ad53cf2956aa96cb414b2d3a86571200dee239b8a0fa5df359081e3dd2793e19": "original",
     "b471482bedaf9c9773210febe95b34deb6c6cc4cd663bb33927afbdbd27708e8": "original",
-    "bc3cb73a787a29c901eb5c0fbaa89faa4d72314190f9e8ad1c428f13cb660bcb": "new version 961500b",
-    "c4585c0229c150589356465a8e5d2eb3449c6086d94ff970f2282ed5eb9236b7": "new version 961500b",
-    "d233ad3ce0596b6ad51d4d7d5d752b67af3441d6159d4b8945983c1b3952db43": "new version 961500b",
-    "ddce3b76bd8063ad93cd56ab7c779e37b31126061b3fb268036695bc60580bd6": "new version 961500b",
+    "bc3cb73a787a29c901eb5c0fbaa89faa4d72314190f9e8ad1c428f13cb660bcb": "new version ffaa42d",
+    "c4585c0229c150589356465a8e5d2eb3449c6086d94ff970f2282ed5eb9236b7": "new version ffaa42d",
+    "c569805cdb94792d75a88228abf148a3e6f891954887fa4fc9bdae4bf55ca8eb": "new version ffaa42d",
+    "d233ad3ce0596b6ad51d4d7d5d752b67af3441d6159d4b8945983c1b3952db43": "new version ffaa42d",
+    "ddce3b76bd8063ad93cd56ab7c779e37b31126061b3fb268036695bc60580bd6": "new version ffaa42d",
     "e17cad002455c1c41cc36770046b08ec83e73695808a79358cf98b812b29c9e8": "original",
-    "e82628c81643b0a0fe3fd3f5bf6b49edbaba7c55071417b86e76f42e3cb0c7a2": "new version 961500b",
-    "e92fbb18124c95d14ed7ca6086b4f7c803d54dbc3610909ce3873cd4b13d8b13": "new version 961500b",
-    "fa198a005d980ce2f54ad6486d9d07767425615f1ca8b007ad7341326ad4adca": "new version 961500b",
+    "e82628c81643b0a0fe3fd3f5bf6b49edbaba7c55071417b86e76f42e3cb0c7a2": "new version ffaa42d",
+    "e92fbb18124c95d14ed7ca6086b4f7c803d54dbc3610909ce3873cd4b13d8b13": "new version ffaa42d",
+    "fa198a005d980ce2f54ad6486d9d07767425615f1ca8b007ad7341326ad4adca": "new version ffaa42d",
     "faab5ae4d264a2d2ec0497bd4aa07555adf53d47626b0cbac6f8518727d68a3a": "original",
 }
 

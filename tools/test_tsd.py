@@ -127,6 +127,8 @@ def main():
 
     new = {n: t.encode('utf-8') for n, t in build_tsd.repo_set().items()}
     original = {n: t.encode('utf-8') for n, t in build_tsd.commit_set(build_tsd.ORIGINAL_COMMIT).items()}
+    added = sorted(set(new) - set(original))      # new support files the restore removes
+    dropped = sorted(set(original) - set(new))    # originals the install removes
     results = []
 
     def check(name, cond, detail=''):
@@ -161,7 +163,7 @@ def main():
         code, out = run(python, INSTALL, home)
         check('install: completes', code == 0 and 'STATUS complete' in out, out)
         check('install: every macro matches the repo', all(read(os.path.join(tmc, n)) == d for n, d in new.items()))
-        check('install: 16 written, 1 removed', '16 written, 0 already up to date, 1 removed' in out, out)
+        check('install: all written, obsolete removed', '%d written, 0 already up to date, %d removed' % (len(new), len(dropped)) in out, out)
         check('install: log names the edited file', 'replaced probe_x_edge.nc (other version)' in out, out)
         check('install: log names original files', 'replaced probe_z.nc (original)' in out, out)
         check('install: log names added files', 'added probe_result.nc' in out, out)
@@ -181,7 +183,7 @@ def main():
         check('install: no warnings', 'WARNING' not in out, out)
 
         code, out = run(python, INSTALL, home)
-        check('install again: nothing to do', '0 written, 16 already up to date, 0 removed' in out and
+        check('install again: nothing to do', '0 written, %d already up to date, 0 removed' % len(new) in out and
               'STATUS complete' in out, out)
         check('install again: no new backup folder', len(backups(home)) == 1)
 
@@ -190,10 +192,9 @@ def main():
         check('restore: completes', code == 0 and 'STATUS complete' in out, out)
         check('restore: every macro matches the original',
               all(read(os.path.join(tmc, n)) == d for n, d in original.items()))
-        check('restore: 14 written, 3 removed', '14 written, 0 already up to date, 3 removed' in out, out)
+        check('restore: all written, new files removed', '%d written, 0 already up to date, %d removed' % (len(original), len(added)) in out, out)
         check('restore: new support files removed',
-              not [n for n in ('probe_result.nc', 'probe_orient.nc', 'probe_apply_wear.nc')
-                   if os.path.exists(os.path.join(tmc, n))])
+              added and not [n for n in added if os.path.exists(os.path.join(tmc, n))], added)
         check('restore: log names the new version', 'replaced probe_x_edge.nc (new version' in out and
               'removed probe_result.nc (new version' in out, out)
         check('restore: probe_z_for_position added back', 'added probe_z_for_position.nc' in out, out)
@@ -206,7 +207,7 @@ def main():
         check('restore: no warnings', 'WARNING' not in out, out)
 
         code, out = run(python, RESTORE, home)
-        check('restore again: nothing to do', '0 written, 14 already up to date, 0 removed' in out, out)
+        check('restore again: nothing to do', '0 written, %d already up to date, 0 removed' % len(original) in out, out)
         check('restore again: no new backup folder', len(backups(home)) == 2)
 
         code, out = run(python, INSTALL, home)
