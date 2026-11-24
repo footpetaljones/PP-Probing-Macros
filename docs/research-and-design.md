@@ -220,7 +220,10 @@ o<probe_apply_wear> call
 - Probe calibration is done in PathPilot (no calibration macro).
 
 ### 4.7 Results file
-- `/home/operator/gcode/probe_results.csv` (fixed path; PathPilot's `LOG` filename can't be parameterized).
+- `~/gcode/probe_results.csv`: the macro writes `(LOGAPPEND,/probe_results.csv)`. PathPilot 2.14.4 puts its gcode
+  folder in front of every `LOG` file name: the full path `/home/operator/gcode/probe_results.csv` became
+  `/home/operator/gcode/home/operator/gcode/probe_results.csv` on the first machine run (2026-11-24). The name
+  can't be parameterized. Every `LOG` line is also echoed into the PathPilot log.
 - One line per feature:
   `epoch, feature_number, macro, measuring_wcs, set_wcs, nominal_x, meas_x, dev_x, …, size_nom, size_meas, size_dev, status, tool, tool_delta`.
 - `LOGAPPEND` → `LOG` → `LOGCLOSE` per feature so the file is readable while a program runs.

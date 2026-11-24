@@ -372,7 +372,8 @@ o410 endif
 
 (results file - 1 append, 2 start a new file with a header row)
 o500 if [#<log> EQ 2]
-	(LOGOPEN,/home/operator/gcode/probe_results.csv)
+	(PathPilot puts its gcode folder in front of a LOG file name: /probe_results.csv is ~/gcode/probe_results.csv)
+	(LOGOPEN,/probe_results.csv)
 	(LOG,epoch,feature,macro,wcs,set_wcs,wcs_updated,status,x_nominal,x,x_dev,y_nominal,y,y_dev,z_nominal,z,z_dev,true_position,size_nominal,size,size_dev,update_tool,wear_correction)
 	(LOGCLOSE)
 	#<_log_results> = 1
@@ -409,7 +410,7 @@ o510 if [#<log> GT 0]
 	#<sd> = #<_result_size_dev>
 	#<ut> = #<update_tool>
 	#<wc> = #<wear_correction>
-	(LOGAPPEND,/home/operator/gcode/probe_results.csv)
+	(LOGAPPEND,/probe_results.csv)
 	o521 if [#<macro> EQ 1]
 		(LOG,#<t>,#<fn>,probe_z,#<w>,#<sw>,#<up>,#<st>,,,,,,,#<zn>,#<zm>,#<zd>,#<tp>,,,,#<ut>,#<wc>)
 	o521 endif
