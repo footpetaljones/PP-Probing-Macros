@@ -323,8 +323,8 @@ so tracking uses `R = K − θ` (θ = probing direction, CCW from +X; K = option
   on some machines; they are then added. PathPilot TSD scripts run under Python 2.
 - `tools/build_tsd.py` generates both from the repo, each macro embedded with its SHA-256; rebuild and commit
   whenever a macro changes:
-  - `tsd/install_probing_macros.py`: every `probe_*.nc` in the repo (17 files); removes `probe_z_for_position.nc`.
-  - `tsd/restore_original_probing_macros.py`: the 14 macros of the baseline commit `9fe40cb`; removes the files
+  - `tsd/install_probing_macros.tsd`: every `probe_*.nc` in the repo (17 files); removes `probe_z_for_position.nc`.
+  - `tsd/restore_original_probing_macros.tsd`: the 14 macros of the baseline commit `9fe40cb`; removes the files
     the original set does not have (`probe_result.nc`, `probe_orient.nc`, `probe_apply_wear.nc`,
     `probe_circular_bore_island.nc`).
 - On the machine each: refuses while a program runs, if `~/tmc/subroutines` is missing or read-only, or if an
@@ -334,8 +334,14 @@ so tracking uses `R = K − θ` (θ = probing direction, CCW from +X; K = option
   new version, or other version) / removed; logs where `~/tmc` points; warns if `SUBROUTINE_PATH` would find
   another copy first or does not include `~/tmc/subroutines`.
 - Follows the TSD template (DiagnosticTestBase, start_new_session, log, save_logs, result_dict); no sampler capture.
-- `tools/test_tsd.py` runs both against stub PathPilot modules: 40 checks (install, reinstall, restore, round trip,
-  backups, shadowing, path forms, refusals). `--python` runs the scripts under another interpreter; no Python 2 was
+- How PathPilot runs them (`ui_common.py`, Pathpilot-Modifications repo): loading a file with a `.tsd` extension
+  (any case) from the File tab runs it as a tech support diagnostic. Line 1 must be a `#!/` shebang; the
+  `diagnostic_name`, `setup_instructions` and `warning_msg` strings feed the OK/Cancel and running dialogs
+  (`parse_tsd_contents`); PathPilot `chmod +x`es the file, runs it as a separate process and reads the JSON
+  that `on_exit` prints (`output_file`, `diagnostic_status`). Copy the file to the controller first: a USB drive
+  loses the execute permission and the chmod does not stick there. A `.py` name would load as G-code instead.
+- `tools/test_tsd.py` runs both against stub PathPilot modules: 48 checks (the File tab's requirements above,
+  install, reinstall, restore, round trip, backups, shadowing, path forms, refusals). `--python` runs the scripts under another interpreter; no Python 2 was
   available here, so 2.7 compatibility was checked statically (vermin: minimum 2.7 / 3.0).
 
 

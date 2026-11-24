@@ -19,8 +19,8 @@ ROOT = os.path.dirname(TOOLS)
 sys.path.insert(0, TOOLS)
 import build_tsd  # noqa: E402
 
-INSTALL = os.path.join(ROOT, 'tsd', 'install_probing_macros.py')
-RESTORE = os.path.join(ROOT, 'tsd', 'restore_original_probing_macros.py')
+INSTALL = os.path.join(ROOT, 'tsd', 'install_probing_macros.tsd')
+RESTORE = os.path.join(ROOT, 'tsd', 'restore_original_probing_macros.tsd')
 
 STUBS = {
     'linuxcnc.py': '''
@@ -133,6 +133,24 @@ def main():
 
     def check(name, cond, detail=''):
         results.append((name, bool(cond), detail))
+
+    # ---- what PathPilot's File tab needs to run a file as a tech support diagnostic (ui_common.py):
+    # a .tsd extension, a shebang on line 1, and module-level diagnostic_name / setup_instructions /
+    # warning_msg strings for its dialogs (parse_tsd_contents)
+    import ast
+    for script in (INSTALL, RESTORE):
+        name = os.path.basename(script)
+        text = read(script).decode('utf-8')
+        check(name + ': .tsd extension', os.path.splitext(script)[1].upper() == '.TSD')
+        check(name + ': shebang on line 1', text.startswith('#!/'))
+        assigned = {}
+        for node in ast.parse(text).body:
+            if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+                if isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
+                    assigned[node.targets[0].id] = node.value.value
+        check(name + ': dialog strings', all(k in assigned for k in ('diagnostic_name', 'setup_instructions', 'warning_msg')),
+              sorted(assigned))
+        check(name + ': executable', os.access(script, os.X_OK))
 
     homes = []
     try:

@@ -3,8 +3,8 @@
 
     python3 tools/build_tsd.py
 
-  tsd/install_probing_macros.py           the macros in this repo (probe_*.nc)
-  tsd/restore_original_probing_macros.py  the original macros (commit ORIGINAL_COMMIT)
+  tsd/install_probing_macros.tsd           the macros in this repo (probe_*.nc)
+  tsd/restore_original_probing_macros.tsd  the original macros (commit ORIGINAL_COMMIT)
 
 Each macro is embedded as text with its SHA-256, so one file is all a machine needs. Each script
 moves the other set's extra files out of the way, so install and restore undo each other. Rebuild
@@ -312,6 +312,7 @@ def write_script(filename, macros, remove, known, **words):
     path = os.path.join(TSD_DIR, filename)
     with open(path, 'w', encoding='utf-8', newline='\n') as f:
         f.write(script)
+    os.chmod(path, 0o755)  # PathPilot also chmods +x before running a .tsd
     print('wrote tsd/%s: %d macros, removes %s' % (filename, len(macros), ', '.join(sorted(remove)) or 'nothing'))
 
 
@@ -324,7 +325,7 @@ def main():
     known.update({digest(t): 'original' for t in original.values()})
     os.makedirs(TSD_DIR, exist_ok=True)
 
-    write_script('install_probing_macros.py', new, set(original) - set(new), known,
+    write_script('install_probing_macros.tsd', new, set(original) - set(new), known,
                  SUMMARY='install the new CAM driven probing macros into ~/tmc/subroutines.',
                  NAME='Install new CAM driven probing macros (%s)' % label,
                  LOG_PREFIX='probing_macros_install',
@@ -333,7 +334,7 @@ def main():
                  SET_LABEL='new macros, commit %s' % label,
                  LOG_TITLE='Installing CAM driven probing macros')
 
-    write_script('restore_original_probing_macros.py', original, set(new) - set(original), known,
+    write_script('restore_original_probing_macros.tsd', original, set(new) - set(original), known,
                  SUMMARY='put the original CAM driven probing macros back in ~/tmc/subroutines.',
                  NAME='Restore original CAM driven probing macros',
                  LOG_PREFIX='probing_macros_restore',
