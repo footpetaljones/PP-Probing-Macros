@@ -183,7 +183,7 @@ Extra inputs on the probing call (cleared after the call):
 | `#<_update_tool>` | 0 | Tool whose wear is corrected. Size features need `_nominal_size`; `probe_z` uses `_z_wcs_offset` as the face nominal and is then inspect-only for the WCS. |
 | `#<_update_feedback>` | 1 | Fraction of the error applied (0 < F ≤ 1). |
 
-`_update_tool_minimum` holds back small corrections; the WCS limits do not apply to wear, and wear has no maximum. The M0 accept step applies to wear the same way as to the WCS.
+`_update_tool_minimum` holds back small corrections; the WCS limits do not apply to wear, and wear has no maximum. The M0 accept step applies to wear the same way as to the WCS, except that a scrap result (status 2: size out of tolerance with material missing) never changes wear (2026-11-24: on the first machine run a probe problem read the groove 0.071 oversize and left a 0.057 diameter correction pending after Cycle Start).
 Corrections: internal size → diameter wear + error·F; external size → diameter wear − error·F; Z face → length wear − error·F.
 The correction is stored in inches as pending (`_wear_pending_tool`, `_wear_pending_diameter`, `_wear_pending_length`);
 a second correction for the same tool adds to it, one for another tool replaces it with a DEBUG warning.
@@ -275,7 +275,7 @@ One or two lines per feature, e.g.
 | Wireless detect | `#<_probe_wireless>` from stock PathPilot namedparams.py. |
 | Three-point | No G52 (see §7); targets computed from the start position (SIN/COS). Close vectors allowed; DEBUG warning under 15° below 3 in / 75 mm diameter, under 5° at or above. |
 | TSD scripts | One installs the new set in `~/tmc/subroutines` (back up, write, verify) and writes a restore script with the files it replaced (2026-11-24; was a static restore of the original set). TSD scripts run under Python 2. |
-| Update limits | `_update_wcs_minimum` / `_update_wcs_maximum` gate WCS changes only (maximum: position and size differences, only when setting the WCS); `_update_tool_minimum` gates wear; no wear maximum. The Fusion post does not output the WCS limits (2026-11-23). |
+| Update limits | `_update_wcs_minimum` / `_update_wcs_maximum` gate WCS changes only (maximum: position and size differences, only when setting the WCS); `_update_tool_minimum` gates wear; no wear maximum. The Fusion post does not output the WCS limits (2026-11-23). No wear update on a scrap result (2026-11-24). |
 | Bias / SPC | Left out. |
 | G30 retract | `G30 Z#5422` moves only Z (verified on the sim). |
 | Calibration macro | Not needed: PathPilot's probe calibration is used. |

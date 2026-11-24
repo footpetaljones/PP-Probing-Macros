@@ -487,6 +487,26 @@ def feature_tests():
                         _tolerance_action=1), pause='abort')
     check('wear: stop at M0 leaves nothing pending', not it.named.get('_wear_pending_diameter'),
           (err, it.named.get('_wear_pending_diameter')))
+    # scrap (size out with material missing) never changes wear; rework (material left) does
+    it, err = bore(dict(tol0, _nominal_size=0.998, _update_tool=5, _size_tolerance_plus=0.001,
+                        _size_tolerance_minus=0.001))
+    check('scrap bore (oversize): status 2, wear not changed', it.named['_result_status'] == 2 and
+          not it.named.get('_wear_pending_diameter') and
+          any('wear not changed - scrap result' in m for k, m in it.messages if k == 'DEBUG'),
+          (err, it.named['_result_status'], it.named.get('_wear_pending_diameter')))
+    it, err = run_feature('probe_circular_boss', World([Cylinder(12.0, 6.0, 0.5, False, ztop=-8.0)]),
+                          (12.02, 6.01, -7.5),
+                          {'_diameter_to_position': 1.5, '_first_position_to_probe': w(0, 0, -8.5)[2],
+                           '_z_clearance_position': w(0, 0, -7.5)[2], '_measuring_wcs': 2,
+                           '_x_wcs_offset': 9.0, '_y_wcs_offset': 3.0, '_nominal_size': 1.002,
+                           '_size_tolerance_plus': 0.001, '_size_tolerance_minus': 0.001, '_tolerance_action': 0,
+                           '_set_wcs': 0, '_update_tool': 4})
+    check('scrap boss (undersize): status 2, wear not changed', it.named['_result_status'] == 2 and
+          not it.named.get('_wear_pending_diameter'), (err, it.named['_result_status'], it.named.get('_wear_pending_diameter')))
+    it, err = bore(dict(tol0, _update_tool=5, _size_tolerance_plus=0.001, _size_tolerance_minus=0.001))
+    check('rework bore (undersize): status 1, wear pending', it.named['_result_status'] == 1 and
+          abs(it.named.get('_wear_pending_diameter', 0) + 0.002) < 1e-9,
+          (err, it.named['_result_status'], it.named.get('_wear_pending_diameter')))
     it, err = run_feature('probe_x_edge', World([Wall('X', 12.0, +1)]), (11.5, 6, -8.5),
                           {'_first_position_to_probe': w(12.5, 0, 0)[0], '_measuring_wcs': 2,
                            '_x_wcs_offset': 9.0, '_update_tool': 5})

@@ -287,10 +287,12 @@ o400 endif
 (internal size: diameter wear + error, external size: diameter wear - error, Z face: length wear - error)
 #<wear_kind> = 0 (1 diameter, 2 length)
 #<wear_correction> = 0 (program units)
-#<wear_skipped> = 0 (1 under the tool minimum, 2 no size or Z, 3 aborted)
+#<wear_skipped> = 0 (1 under the tool minimum, 2 no size or Z, 3 aborted, 4 scrap)
 o420 if [#<update_tool> GT 0]
 	o421 if [#<abort_after_log>]
 		#<wear_skipped> = 3
+	o421 elseif [#<_result_size_status> EQ 2]
+		#<wear_skipped> = 4 (size out of tolerance with material missing: a tool correction cannot fix it)
 	o421 elseif [#<size_check>]
 		o422 if [ABS[#<_result_size_dev>] LT #<update_tool_minimum>]
 			#<wear_skipped> = 1
@@ -350,6 +352,9 @@ o410 if [#<display> EQ 1]
 	o444 if [#<wear_skipped> EQ 3]
 		(DEBUG, T#<update_tool> wear not changed - aborted)
 	o444 endif
+	o445 if [#<wear_skipped> EQ 4]
+		(DEBUG, T#<update_tool> wear not changed - scrap result)
+	o445 endif
 	o411 if [#<set_wcs> NE 1]
 		(DEBUG, G54.1 P#<_measuring_wcs> not updated - inspect only)
 	o411 endif
