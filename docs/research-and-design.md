@@ -271,7 +271,7 @@ One or two lines per feature, e.g.
 | Protected moves | Not needed: PathPilot treats every G1 with the probe as a protected move (2026-11-23). |
 | Wireless detect | `#<_probe_wireless>` from stock PathPilot namedparams.py. |
 | Three-point | No G52 (see §7); targets computed from the start position (SIN/COS). Close vectors allowed; DEBUG warning under 15° below 3 in / 75 mm diameter, under 5° at or above. |
-| TSD scripts | One installs the new set, one restores the original set, both in `~/tmc/subroutines` (back up, write, verify). TSD scripts run under Python 2. |
+| TSD scripts | One installs the new set in `~/tmc/subroutines` (back up, write, verify) and writes a restore script with the files it replaced (2026-11-24; was a static restore of the original set). TSD scripts run under Python 2. |
 | Update limits | `_update_wcs_minimum` / `_update_wcs_maximum` gate WCS changes only (maximum: position and size differences, only when setting the WCS); `_update_tool_minimum` gates wear; no wear maximum. The Fusion post does not output the WCS limits (2026-11-23). |
 | Bias / SPC | Left out. |
 | G30 retract | `G30 Z#5422` moves only Z (verified on the sim). |
@@ -319,43 +319,44 @@ so tracking uses `R = K − θ` (θ = probing direction, CCW from +X; K = option
 10. Separate WCS and tool wear limits (`87dcd89`).
 
 ### TSD scripts
-- PathPilot's copies are in `~/tmc/subroutines` (Norman); the scripts replace them there. The macros may be missing
-  on some machines; they are then added. PathPilot TSD scripts run under Python 2.
-- `tools/build_tsd.py` generates both from the repo, each macro embedded with its SHA-256; rebuild and commit
-  whenever a macro changes:
-  - `tsd/install_probing_macros.tsd`: every `probe_*.nc` in the repo (17 files); removes `probe_z_for_position.nc`.
-  - `tsd/restore_original_probing_macros.tsd`: the 14 macros of the baseline commit `9fe40cb`; removes the files
-    the original set does not have (`probe_result.nc`, `probe_orient.nc`, `probe_apply_wear.nc`,
-    `probe_circular_bore_island.nc`).
-- On the machine each: refuses while a program runs, if `~/tmc/subroutines` is missing or read-only, or if an
-  embedded copy is damaged; copies every file it replaces or removes to
-  `~/gcode/probing_macros_backup_<date>_<time>[_n]/` (reachable from the File tab); writes through a temporary
-  name and renames, keeping the file mode; verifies every file; logs each file as added / replaced (original,
-  new version, or other version) / removed; logs where `~/tmc` points; warns if `SUBROUTINE_PATH` would find
-  another copy first or does not include `~/tmc/subroutines`.
+- PathPilot's copies are in `~/tmc/subroutines`; the install replaces them there. The macros may be missing on some
+  machines; they are then added. PathPilot TSD scripts run under Python 2.
+- `tools/build_tsd.py` builds `tsd/install_probing_macros.tsd` from the repo: every `probe_*.nc` (17 files, base64
+  with SHA-256); removes `probe_z_for_position.nc` (in the baseline `9fe40cb`, not in the new set). Rebuild and
+  commit whenever a macro changes.
+- **The install writes the restore.** Before it changes anything, the install copies every file it will replace or
+  remove into `~/gcode/probing_macros_backup_<date>_<time>[_n]/` and writes `restore_probing_macros.tsd` into that
+  folder, with those files (contents and modes) embedded and the list of files the run adds. The restore puts the
+  copies back and deletes the added files, so it undoes exactly that run on that machine, whatever versions were
+  there. The install carries its own template (`TEMPLATE_B64`) to write it; the restore writes no restore of its
+  own. A run that changes nothing writes no restore. The completion dialog shows the log and the restore path.
+  (Until 2026-11-24 a static `restore_original_probing_macros.tsd` wrote the baseline `9fe40cb`; on the 1500MX 10
+  of the 12 existing macros were other versions, so it would not have given back what was there. Removed.)
+- On the machine both: refuse while a program runs, if `~/tmc/subroutines` is missing or read-only, or if an
+  embedded copy is damaged; write through a temporary name and rename; verify every file; log each file as added /
+  replaced / removed with its version (new version, baseline, from before the install, other version); log where
+  `~/tmc` points; warn if `SUBROUTINE_PATH` would find another copy first or does not include `~/tmc/subroutines`.
 - **No DiagnosticTestBase, no HAL.** The first versions followed the TSD template. On the 1500MX (PathPilot 2.14.4,
   2026-11-24) the install completed, then rtapi_app crashed (signal 11) as the template's HAL sampler session was
   saved and closed; realtime stopped and the drives e-stopped. The template's `start_new_session` loads the sampler
-  RT component and nets `motion.motion-enabled` to it even when nothing is captured. The scripts now import no
+  RT component and nets `motion.motion-enabled` to it even when nothing is captured. The scripts import no
   PathPilot diagnostic code: they log to stderr (it lands in the PathPilot log) and to
   `~/gcode/logfiles/<prefix>_<date>_<time>.txt`, and print only the JSON PathPilot reads on stdout.
 - How PathPilot runs them (`ui_common.py`, Pathpilot-Modifications repo): loading a file with a `.tsd` extension
   (any case) from the File tab runs it as a tech support diagnostic. Line 1 must be a `#!/` shebang; the
   `diagnostic_name`, `setup_instructions` and `warning_msg` strings feed the OK/Cancel and running dialogs
   (`parse_tsd_contents`); PathPilot `chmod +x`es the file, runs it as a separate process and reads the JSON
-  that `on_exit` prints (`output_file`, `diagnostic_status`). Copy the file to the controller first: a USB drive
-  loses the execute permission and the chmod does not stick there. A `.py` name would load as G-code instead.
+  on stdout (`output_file`, `diagnostic_status`). Copy the file to the controller first: a USB drive loses the
+  execute permission and the chmod does not stick there. A `.py` name would load as G-code instead.
 - First machine run, 2026-11-24: stopped at the program-running check (`DiagnosticTestBase` has no `self.stat`)
   before changing anything. A failure now reports `diagnostic_status` `failed` ("Diagnostic failed ... Results are
   saved in <log>") instead of PathPilot's "Diagnostic incomplete".
-- On that machine 10 of the 12 existing macros were neither the baseline `9fe40cb` nor the new set ("other
-  version" in the log; `probe_xy_corner` and `probe_y_boss` were the baseline; `probe_level_a_axis` and
-  `probe_z_for_position` were not there). The restore script writes `9fe40cb`, so it does not give back what was there. The install's
-  backup folder (`~/gcode/probing_macros_backup_20261124_145151`) holds those copies.
-- `tools/test_tsd.py` runs both against stub PathPilot modules: 52 checks (the File tab's requirements above, no HAL
-  imports, stdout is only the result JSON, the log file, install, reinstall, restore, round trip, backups, shadowing,
-  path forms, refusals). `--python` runs the scripts under another interpreter; no Python 2 was
-  available here, so 2.7 compatibility was checked statically (vermin: minimum 2.7 / 3.0).
+- `tools/test_tsd.py` runs the install and the restore it writes against stub PathPilot modules (linuxcnc and
+  redis only): 63 checks - the File tab's requirements for both, no HAL imports, stdout is only the result JSON,
+  the log file, install, reinstall, restore back to the exact contents and modes, restore again, install after
+  restore, a machine with no macros (the restore only deletes), shadowing, path forms, refusals. `--python` runs the
+  scripts under another interpreter; no Python 2 was available here, so 2.7 compatibility of the install and of a
+  written restore was checked statically (vermin: minimum 2.7 / 3.0).
 
 
 ### Tools
