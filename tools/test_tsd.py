@@ -60,9 +60,9 @@ class DiagnosticError(Exception):
 def make_sampler_csv_header(pins):
     return ','.join(pins)
 class DiagnosticTestBase(object):
+    # like PathPilot 2.14.4's: no self.stat (the first machine run failed on that)
     def __init__(self, tool, prefix, pins):
         self.result_dict = {}
-        self.stat = linuxcnc.stat()
     def start_new_session(self):
         print('SESSION')
     def log(self, msg):
@@ -168,7 +168,7 @@ def main():
         before = snapshot(tmc)
 
         code, out = run(python, INSTALL, home, {'STUB_INTERP_STATE': '2'})
-        check('install, program running: refused', 'a program is running' in out and 'STATUS None' in out, out)
+        check('install, program running: refused', 'a program is running' in out and 'STATUS failed' in out, out)
         check('install, program running: nothing changed', snapshot(tmc) == before and not backups(home))
 
         damaged = os.path.join(home, 'damaged.py')
@@ -255,7 +255,7 @@ def main():
         os.makedirs(os.path.join(bare, 'gcode'))
         code, out = run(python, INSTALL, bare)
         check('missing ~/tmc/subroutines: refused', 'not found - nothing was changed' in out and
-              'STATUS None' in out and not os.path.exists(os.path.join(bare, 'tmc')), out)
+              'STATUS failed' in out and not os.path.exists(os.path.join(bare, 'tmc')), out)
     finally:
         for h in homes:
             shutil.rmtree(h)

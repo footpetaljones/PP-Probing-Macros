@@ -2398,15 +2398,20 @@ class ProbingMacroInstaller(DiagnosticTestBase):
 
     def __init__(self):
         DiagnosticTestBase.__init__(self, HalSamplerCaptureTool(), log_file_prefix, tsd_pins)
+        self.stat = linuxcnc.stat()  # DiagnosticTestBase does not provide one
 
     def run(self):
+        # PathPilot shows "Diagnostic <diagnostic_status>" from the JSON on_exit prints; without a
+        # status it only says "Diagnostic incomplete", so every way out of here sets one
         try:
             # Boilerplate to start a new test session (no sampler capture is needed)
             self.start_new_session()
+            self.result_dict["diagnostic_status"] = "failed"
             if self.install():
                 self.log("Test Complete")
                 self.result_dict["diagnostic_status"] = "complete"
         except Exception as e:
+            self.result_dict["diagnostic_status"] = "failed"
             self.log("Failed: {}".format(e))
             raise
         finally:

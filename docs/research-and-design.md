@@ -340,6 +340,9 @@ so tracking uses `R = K − θ` (θ = probing direction, CCW from +X; K = option
   (`parse_tsd_contents`); PathPilot `chmod +x`es the file, runs it as a separate process and reads the JSON
   that `on_exit` prints (`output_file`, `diagnostic_status`). Copy the file to the controller first: a USB drive
   loses the execute permission and the chmod does not stick there. A `.py` name would load as G-code instead.
+- PathPilot 2.14.4's `DiagnosticTestBase` has no `self.stat` (the first machine run, 2026-11-24, stopped there
+  before changing anything); the scripts make their own `linuxcnc.stat()`. Any failure sets `diagnostic_status`
+  to `failed`, so PathPilot shows "Diagnostic failed ... Results are saved in <zip>" instead of "Diagnostic incomplete".
 - `tools/test_tsd.py` runs both against stub PathPilot modules: 48 checks (the File tab's requirements above,
   install, reinstall, restore, round trip, backups, shadowing, path forms, refusals). `--python` runs the scripts under another interpreter; no Python 2 was
   available here, so 2.7 compatibility was checked statically (vermin: minimum 2.7 / 3.0).
