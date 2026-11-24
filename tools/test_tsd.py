@@ -75,6 +75,19 @@ class DiagnosticTestBase(object):
 }
 
 
+def result(out):
+    """The JSON PathPilot reads from stdout (the last line that parses), or {}."""
+    import json
+    for line in reversed(out.splitlines()):
+        line = line.strip()
+        if line.startswith('{'):
+            try:
+                return json.loads(line)
+            except ValueError:
+                pass
+    return {}
+
+
 def write(path, data):
     with open(path, 'wb') as f:
         f.write(data if isinstance(data, bytes) else data.encode('utf-8'))
@@ -98,16 +111,22 @@ def make_home():
     return home
 
 
+LAST_STDOUT = ['']
+
+
 def run(python, script, home, env_extra=None):
+    """Run a script as PathPilot does; returns (exit code, stdout + stderr). Stdout alone is kept in
+    LAST_STDOUT[0]: PathPilot parses all of it as JSON."""
     tmc_sub = os.path.join(home, 'tmc', 'subroutines')
     user_sub = os.path.join(home, 'gcode', 'subroutines')
     env = dict(os.environ, HOME=home, PYTHONPATH=os.path.join(home, 'stubs'),
                STUB_INI_PATH=os.path.join(home, 'configs', 'mill.ini'),
                STUB_SUBROUTINE_PATH=user_sub + ':' + tmc_sub)
     env.update(env_extra or {})
-    p = subprocess.Popen([python, script], env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    out = p.communicate()[0].decode('utf-8', 'replace')
-    return p.returncode, out
+    p = subprocess.Popen([python, script], env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    out, err = [s.decode('utf-8', 'replace') for s in p.communicate()]
+    LAST_STDOUT[0] = out
+    return p.returncode, err + out
 
 
 def backups(home):
@@ -151,6 +170,14 @@ def main():
         check(name + ': dialog strings', all(k in assigned for k in ('diagnostic_name', 'setup_instructions', 'warning_msg')),
               sorted(assigned))
         check(name + ': executable', os.access(script, os.X_OK))
+        imported = set()
+        for node in ast.walk(ast.parse(text)):
+            if isinstance(node, ast.Import):
+                imported.update(a.name for a in node.names)
+            elif isinstance(node, ast.ImportFrom):
+                imported.add(node.module)
+        check(name + ': no HAL / DiagnosticTestBase', not imported & {'diagnostic_script_util', 'halsampler_manager', 'hal'},
+              sorted(imported))
 
     homes = []
     try:
@@ -168,7 +195,7 @@ def main():
         before = snapshot(tmc)
 
         code, out = run(python, INSTALL, home, {'STUB_INTERP_STATE': '2'})
-        check('install, program running: refused', 'a program is running' in out and 'STATUS failed' in out, out)
+        check('install, program running: refused', 'a program is running' in out and result(out).get('diagnostic_status') == 'failed', out)
         check('install, program running: nothing changed', snapshot(tmc) == before and not backups(home))
 
         damaged = os.path.join(home, 'damaged.py')
@@ -179,7 +206,17 @@ def main():
         check('install, damaged script: nothing changed', snapshot(tmc) == before and not backups(home))
 
         code, out = run(python, INSTALL, home)
-        check('install: completes', code == 0 and 'STATUS complete' in out, out)
+        check('install: completes', code == 0 and result(out).get('diagnostic_status') == 'complete', out)
+        try:
+            import json
+            parsed = json.loads(LAST_STDOUT[0])
+        except ValueError:
+            parsed = None
+        check('install: stdout is only the JSON PathPilot reads', isinstance(parsed, dict) and
+              set(parsed) == {'diagnostic_status', 'output_file'}, LAST_STDOUT[0])
+        log_file = (parsed or {}).get('output_file', '')
+        check('install: log saved where the JSON says', os.path.isfile(log_file) and
+              'Complete' in read(log_file).decode('utf-8') and log_file.startswith(os.path.join(home, 'gcode')), log_file)
         check('install: every macro matches the repo', all(read(os.path.join(tmc, n)) == d for n, d in new.items()))
         check('install: all written, obsolete removed', '%d written, 0 already up to date, %d removed' % (len(new), len(dropped)) in out, out)
         check('install: log names the edited file', 'replaced probe_x_edge.nc (other version)' in out, out)
@@ -202,12 +239,12 @@ def main():
 
         code, out = run(python, INSTALL, home)
         check('install again: nothing to do', '0 written, %d already up to date, 0 removed' % len(new) in out and
-              'STATUS complete' in out, out)
+              result(out).get('diagnostic_status') == 'complete', out)
         check('install again: no new backup folder', len(backups(home)) == 1)
 
         installed = snapshot(tmc)
         code, out = run(python, RESTORE, home)
-        check('restore: completes', code == 0 and 'STATUS complete' in out, out)
+        check('restore: completes', code == 0 and result(out).get('diagnostic_status') == 'complete', out)
         check('restore: every macro matches the original',
               all(read(os.path.join(tmc, n)) == d for n, d in original.items()))
         check('restore: all written, new files removed', '%d written, 0 already up to date, %d removed' % (len(original), len(added)) in out, out)
@@ -229,7 +266,7 @@ def main():
         check('restore again: no new backup folder', len(backups(home)) == 2)
 
         code, out = run(python, INSTALL, home)
-        check('install after restore: matches the repo', 'STATUS complete' in out and
+        check('install after restore: matches the repo', result(out).get('diagnostic_status') == 'complete' and
               all(read(os.path.join(tmc, n)) == d for n, d in new.items()), out)
 
         # ---- which copy PathPilot will use
@@ -255,7 +292,7 @@ def main():
         os.makedirs(os.path.join(bare, 'gcode'))
         code, out = run(python, INSTALL, bare)
         check('missing ~/tmc/subroutines: refused', 'not found - nothing was changed' in out and
-              'STATUS failed' in out and not os.path.exists(os.path.join(bare, 'tmc')), out)
+              result(out).get('diagnostic_status') == 'failed' and not os.path.exists(os.path.join(bare, 'tmc')), out)
     finally:
         for h in homes:
             shutil.rmtree(h)

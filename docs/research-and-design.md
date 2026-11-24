@@ -333,18 +333,28 @@ so tracking uses `R = K − θ` (θ = probing direction, CCW from +X; K = option
   name and renames, keeping the file mode; verifies every file; logs each file as added / replaced (original,
   new version, or other version) / removed; logs where `~/tmc` points; warns if `SUBROUTINE_PATH` would find
   another copy first or does not include `~/tmc/subroutines`.
-- Follows the TSD template (DiagnosticTestBase, start_new_session, log, save_logs, result_dict); no sampler capture.
+- **No DiagnosticTestBase, no HAL.** The first versions followed the TSD template. On the 1500MX (PathPilot 2.14.4,
+  2026-11-24) the install completed, then rtapi_app crashed (signal 11) as the template's HAL sampler session was
+  saved and closed; realtime stopped and the drives e-stopped. The template's `start_new_session` loads the sampler
+  RT component and nets `motion.motion-enabled` to it even when nothing is captured. The scripts now import no
+  PathPilot diagnostic code: they log to stderr (it lands in the PathPilot log) and to
+  `~/gcode/logfiles/<prefix>_<date>_<time>.txt`, and print only the JSON PathPilot reads on stdout.
 - How PathPilot runs them (`ui_common.py`, Pathpilot-Modifications repo): loading a file with a `.tsd` extension
   (any case) from the File tab runs it as a tech support diagnostic. Line 1 must be a `#!/` shebang; the
   `diagnostic_name`, `setup_instructions` and `warning_msg` strings feed the OK/Cancel and running dialogs
   (`parse_tsd_contents`); PathPilot `chmod +x`es the file, runs it as a separate process and reads the JSON
   that `on_exit` prints (`output_file`, `diagnostic_status`). Copy the file to the controller first: a USB drive
   loses the execute permission and the chmod does not stick there. A `.py` name would load as G-code instead.
-- PathPilot 2.14.4's `DiagnosticTestBase` has no `self.stat` (the first machine run, 2026-11-24, stopped there
-  before changing anything); the scripts make their own `linuxcnc.stat()`. Any failure sets `diagnostic_status`
-  to `failed`, so PathPilot shows "Diagnostic failed ... Results are saved in <zip>" instead of "Diagnostic incomplete".
-- `tools/test_tsd.py` runs both against stub PathPilot modules: 48 checks (the File tab's requirements above,
-  install, reinstall, restore, round trip, backups, shadowing, path forms, refusals). `--python` runs the scripts under another interpreter; no Python 2 was
+- First machine run, 2026-11-24: stopped at the program-running check (`DiagnosticTestBase` has no `self.stat`)
+  before changing anything. A failure now reports `diagnostic_status` `failed` ("Diagnostic failed ... Results are
+  saved in <log>") instead of PathPilot's "Diagnostic incomplete".
+- On that machine 10 of the 12 existing macros were neither the baseline `9fe40cb` nor the new set ("other
+  version" in the log; `probe_xy_corner` and `probe_y_boss` were the baseline; `probe_level_a_axis` and
+  `probe_z_for_position` were not there). The restore script writes `9fe40cb`, so it does not give back what was there. The install's
+  backup folder (`~/gcode/probing_macros_backup_20261124_145151`) holds those copies.
+- `tools/test_tsd.py` runs both against stub PathPilot modules: 52 checks (the File tab's requirements above, no HAL
+  imports, stdout is only the result JSON, the log file, install, reinstall, restore, round trip, backups, shadowing,
+  path forms, refusals). `--python` runs the scripts under another interpreter; no Python 2 was
   available here, so 2.7 compatibility was checked statically (vermin: minimum 2.7 / 3.0).
 
 

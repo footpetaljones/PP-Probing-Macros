@@ -13,18 +13,22 @@ What it does
   3. Writes the 17 macro files and checks each one byte for byte.
   4. Removes probe_z_for_position.nc if present (a copy is in the backup folder).
   5. Warns if PathPilot's SUBROUTINE_PATH would find another copy of a macro first.
+  6. Saves its log in ~/gcode/logfiles/probing_macros_install_<date>_<time>.txt
+
+It does not use PathPilot's DiagnosticTestBase: that loads a HAL sampler, and on a 1500MX
+(PathPilot 2.14.4) rtapi_app crashed (signal 11, drives e-stopped) as the sampler session
+closed after an install. This script touches no HAL; it only prints the JSON PathPilot reads.
 """
 import hashlib
 import io
+import json
 import os
 import shutil
+import sys
 import time
+import traceback
 
 import linuxcnc
-
-import diagnostic_script_util
-from halsampler_manager import HalSamplerCaptureTool
-from diagnostic_script_util import DiagnosticTestBase, DiagnosticError
 
 # Provide a name for the test that will be shown to user before starting it
 diagnostic_name = "Install new CAM driven probing macros (bbc8ea3)"
@@ -43,14 +47,10 @@ Replaced and removed files are saved to ~/gcode/probing_macros_backup_<date>_<ti
 The machine does not move. Reload any open program afterwards.
 """
 
-# List of pins / signals to sample during the test (nothing is sampled by this script)
-tsd_pins = [
-    "motion.motion-enabled",
-]
-
 MACRO_SET = "new macros, commit bbc8ea3"
 TARGET_DIR = os.path.expanduser("~/tmc/subroutines")
 BACKUP_PARENT = os.path.expanduser("~/gcode")
+LOG_DIR = os.path.expanduser("~/gcode/logfiles")
 
 # Not part of this set: moved to the backup folder if present
 REMOVE = ['probe_z_for_position.nc']
@@ -2394,28 +2394,49 @@ def subroutine_path():
     return dirs
 
 
-class ProbingMacroInstaller(DiagnosticTestBase):
+class ProbingMacroInstaller(object):
 
     def __init__(self):
-        DiagnosticTestBase.__init__(self, HalSamplerCaptureTool(), log_file_prefix, tsd_pins)
-        self.stat = linuxcnc.stat()  # DiagnosticTestBase does not provide one
+        self.stat = None
+        self.lines = []
+        # PathPilot shows "Diagnostic <diagnostic_status> ... Results are saved in <output_file>"
+        self.result_dict = {"diagnostic_status": "failed"}
+
+    def log(self, msg):
+        line = "{} | {}".format(time.strftime("%Y-%m-%d_%H-%M-%S"), msg)
+        self.lines.append(line)
+        sys.stderr.write(line + "\n")  # stderr ends up in the PathPilot log; stdout is for the result
+        sys.stderr.flush()
 
     def run(self):
-        # PathPilot shows "Diagnostic <diagnostic_status>" from the JSON on_exit prints; without a
-        # status it only says "Diagnostic incomplete", so every way out of here sets one
         try:
-            # Boilerplate to start a new test session (no sampler capture is needed)
-            self.start_new_session()
-            self.result_dict["diagnostic_status"] = "failed"
+            self.stat = linuxcnc.stat()
             if self.install():
-                self.log("Test Complete")
+                self.log("Complete")
                 self.result_dict["diagnostic_status"] = "complete"
-        except Exception as e:
-            self.result_dict["diagnostic_status"] = "failed"
-            self.log("Failed: {}".format(e))
-            raise
+        except Exception:
+            self.log("Failed: " + traceback.format_exc())
         finally:
-            self.save_logs()
+            self.save_log()
+
+    def save_log(self):
+        folder = LOG_DIR if os.path.isdir(LOG_DIR) else BACKUP_PARENT
+        path = os.path.join(folder, "{}_{}.txt".format(log_file_prefix, time.strftime("%Y%m%d_%H%M%S")))
+        data = "\n".join(self.lines) + "\n"
+        if not isinstance(data, bytes):
+            data = data.encode("utf-8")
+        try:
+            with io.open(path, "wb") as f:
+                f.write(data)
+        except Exception as e:
+            sys.stderr.write("could not save the log to {}: {}\n".format(path, e))
+            path = "the PathPilot log (could not write {})".format(path)
+        self.result_dict["output_file"] = path
+
+    def on_exit(self):
+        # The only output on stdout: PathPilot parses it as JSON
+        sys.stdout.write(json.dumps(self.result_dict) + "\n")
+        sys.stdout.flush()
 
     def install(self):
         self.log("Installing CAM driven probing macros: " + MACRO_SET)
